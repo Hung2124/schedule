@@ -1268,6 +1268,62 @@ const ToolsSection = () => {
 
 // --- Main App Component ---
 function App() {
+    const { schedule } = useSchedule(); // Access schedule data
+    const notifiedTodayRef = useRef(new Set()); // To track sent notifications for the day
+    const lastNotificationCheckDayRef = useRef(null); // To track the day for resetting notifiedTodayRef
+
+    useEffect(() => {
+        // Notification checking logic
+        const checkScheduleAndNotify = () => {
+            if (Notification.permission !== 'granted' || !schedule || !schedule.timeSlots) {
+                return;
+            }
+
+            const nowHanoi = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+            const currentDayHanoi = nowHanoi.toLocaleDateString('vi-VN', { weekday: 'long' }); // e.g., "Thứ Hai"
+            const currentHourHanoi = nowHanoi.getHours();
+            const currentMinuteHanoi = nowHanoi.getMinutes();
+            const currentDateHanoiStr = nowHanoi.toDateString(); // For daily reset
+
+            // Reset notified set if it's a new day
+            if (lastNotificationCheckDayRef.current !== currentDateHanoiStr) {
+                console.log("PomodoroTimer: New day, resetting notifiedToday set.");
+                notifiedTodayRef.current.clear();
+                lastNotificationCheckDayRef.current = currentDateHanoiStr;
+            }
+            
+            schedule.timeSlots.forEach(slot => {
+                const slotTimeParts = slot.time.split(' - ')[0].split(':'); // "5:00" -> ["5", "00"]
+                const slotHour = parseInt(slotTimeParts[0], 10);
+                const slotMinute = parseInt(slotTimeParts[1], 10);
+
+                if (slotHour === currentHourHanoi && slotMinute === currentMinuteHanoi) {
+                    const activityForToday = slot.activities.find(act => act.day === currentDayHanoi);
+                    if (activityForToday) {
+                        const notificationId = `${currentDateHanoiStr}-${slot.time}-${activityForToday.activityName}`;
+                        if (!notifiedTodayRef.current.has(notificationId)) {
+                            console.log(`PomodoroTimer: Sending notification for ${activityForToday.activityName} at ${slot.time}`);
+                            new Notification('Đến giờ học!', {
+                                body: `${activityForToday.activityName} (${slot.time})`,
+                                icon: '/logo192.png' // Using a public path for the icon
+                            });
+                            notifiedTodayRef.current.add(notificationId);
+                        }
+                    }
+                }
+            });
+        };
+
+        // Check every 30 seconds
+        const intervalId = setInterval(checkScheduleAndNotify, 30000); 
+
+        // Initial check on mount
+        checkScheduleAndNotify();
+
+        return () => clearInterval(intervalId);
+    }, [schedule]); // Re-run if schedule changes
+
+
     useEffect(() => {
         const fontAwesomeLink = document.createElement('link');
         fontAwesomeLink.rel = 'stylesheet';
