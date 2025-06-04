@@ -1255,7 +1255,7 @@ const PdfDownloadButton = () => {
                 tableWrapper.style.overflowX = 'visible';
             }
             console.log("PDF Gen: Waiting 1 second for content to render...");
-            await new Promise(resolve => setTimeout(resolve, 1000)); // Increased delay to 1 second
+            await new Promise(resolve => setTimeout(resolve, 1000)); 
 
             const captureScale = 1.5; 
 
@@ -1288,7 +1288,7 @@ const PdfDownloadButton = () => {
             combinedCanvas.width = Math.max(canvasTimetable.width, canvasNotes.width);
             combinedCanvas.height = canvasTimetable.height + canvasNotes.height + spacingBetweenElementsPx;
 
-            ctx.fillStyle = '#ffffff'; // Keep combined canvas background white for PDF
+            ctx.fillStyle = '#ffffff'; 
             ctx.fillRect(0, 0, combinedCanvas.width, combinedCanvas.height);
 
             console.log("PDF Gen: Drawing timetable canvas onto combined canvas...");
@@ -1603,24 +1603,3 @@ function App() {
 }
 
 export default App;
-
-</final_file_content>
-
-IMPORTANT: For any future changes to this file, use the final_file_content shown above as your reference. This content reflects the current state of the file, including any auto-formatting (e.g., if you used single quotes but the formatter converted them to double quotes). Always base your SEARCH/REPLACE operations on this final version to ensure accuracy.
-
-<environment_details>
-# VSCode Visible Files
-schedule-app/src/App.js
-
-# VSCode Open Tabs
-schedule-app/src/App.js
-
-# Current Time
-6/4/2025, 11:17:12 PM (Asia/Bangkok, UTC+7:00)
-
-# Context Window Usage
-318,822 / 1,048.576K tokens used (30%)
-
-# Current Mode
-ACT MODE
-</environment_details>
