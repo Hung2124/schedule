@@ -574,55 +574,58 @@ const PomodoroTimer = () => {
     const longBreakMinutes = 15;
     const cyclesBeforeLongBreak = 4;
 
-    useEffect(() => {
-        if (window.Tone && !alarmSound.current) {
-            try {
-                alarmSound.current = new window.Tone.Synth().toDestination();
-                console.log("PomodoroTimer: Tone.Synth initialized and connected to destination.");
-            } catch (e) {
-                console.error("PomodoroTimer: Error initializing Tone.Synth:", e);
-            }
-        } else {
-            if (!window.Tone) console.warn("PomodoroTimer: window.Tone not available on mount for synth init.");
-            if (alarmSound.current) console.log("PomodoroTimer: alarmSound.current already exists on mount.");
-        }
-    }, []);
+    // useEffect for synth initialization is removed.
 
     const playAlarm = useCallback(() => {
         console.log("PomodoroTimer: playAlarm called.");
+
         if (!window.Tone) {
-            console.warn("PomodoroTimer: window.Tone is not available in playAlarm.");
-            return;
-        }
-        if (!alarmSound.current) {
-            console.warn("PomodoroTimer: alarmSound.current (synth) is not available in playAlarm.");
+            console.warn("PomodoroTimer: playAlarm - window.Tone is not available.");
             return;
         }
 
-        console.log(`PomodoroTimer: Tone.context.state before start attempt: ${window.Tone.context.state}`);
+        // Initialize synth if it hasn't been already (lazy initialization)
+        if (!alarmSound.current) {
+            console.log("PomodoroTimer: playAlarm - alarmSound.current is null, attempting to initialize Tone.Synth now.");
+            try {
+                alarmSound.current = new window.Tone.Synth().toDestination();
+                console.log("PomodoroTimer: playAlarm - Tone.Synth initialized successfully.");
+            } catch (e) {
+                console.error("PomodoroTimer: playAlarm - Error initializing Tone.Synth:", e);
+                return; // Don't proceed if synth init fails
+            }
+        }
+        
+        // At this point, alarmSound.current should be valid if initialization didn't throw.
+        if (!alarmSound.current) {
+             console.error("PomodoroTimer: playAlarm - alarmSound.current is STILL null after attempting init. This should not happen.");
+             return;
+        }
+
+        console.log(`PomodoroTimer: playAlarm - Tone.context.state before start attempt: ${window.Tone.context.state}`);
 
         const playNotes = () => {
-            console.log("PomodoroTimer: Attempting to trigger notes.");
+            console.log("PomodoroTimer: playAlarm - Attempting to trigger notes.");
             try {
                 alarmSound.current.triggerAttackRelease("C5", "8n", window.Tone.now());
                 alarmSound.current.triggerAttackRelease("E5", "8n", window.Tone.now() + 0.2);
                 alarmSound.current.triggerAttackRelease("G5", "8n", window.Tone.now() + 0.4);
-                console.log("PomodoroTimer: Notes triggered.");
+                console.log("PomodoroTimer: playAlarm - Notes triggered.");
             } catch (e) {
-                console.error("PomodoroTimer: Error triggering notes:", e);
+                console.error("PomodoroTimer: playAlarm - Error triggering notes:", e);
             }
         };
 
         if (window.Tone.context.state !== 'running') {
-            console.log("PomodoroTimer: AudioContext not running, attempting to start...");
+            console.log("PomodoroTimer: playAlarm - AudioContext not running, attempting to start...");
             window.Tone.start().then(() => {
-                console.log("PomodoroTimer: Tone.js AudioContext started successfully via Tone.start().");
+                console.log("PomodoroTimer: playAlarm - Tone.js AudioContext started successfully via Tone.start().");
                 playNotes();
             }).catch(e => {
-                console.error("PomodoroTimer: Error starting Tone.js AudioContext via Tone.start():", e);
+                console.error("PomodoroTimer: playAlarm - Error starting Tone.js AudioContext via Tone.start():", e);
             });
         } else {
-            console.log("PomodoroTimer: AudioContext already running.");
+            console.log("PomodoroTimer: playAlarm - AudioContext already running.");
             playNotes();
         }
     }, []);
