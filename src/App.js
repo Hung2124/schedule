@@ -1044,13 +1044,44 @@ const StaticNotesSection = () => (
 const PdfDownloadButton = () => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [message, setMessage] = useState("");
-    const html2canvas = window.html2canvas;
-    const jsPDF = window.jspdf?.jsPDF;
+    const [libsLoaded, setLibsLoaded] = useState(false);
+
+    useEffect(() => {
+        // Check if libraries are loaded
+        if (window.html2canvas && window.jspdf) {
+            setLibsLoaded(true);
+        } else {
+            // Poll for libraries if not immediately available
+            let attempts = 0;
+            const interval = setInterval(() => {
+                attempts++;
+                if (window.html2canvas && window.jspdf) {
+                    setLibsLoaded(true);
+                    clearInterval(interval);
+                    console.log("PDF libraries loaded after polling.");
+                } else if (attempts > 20) { // Stop after 10 seconds (20 * 500ms)
+                    clearInterval(interval);
+                    console.warn("PDF libraries did not load after 10 seconds.");
+                    setMessage("Lỗi: Không thể tải thư viện PDF. Vui lòng thử làm mới trang.");
+                }
+            }, 500);
+            return () => clearInterval(interval);
+        }
+    }, []);
 
     const handleDownloadPdf = async () => {
+        if (!libsLoaded) {
+            setMessage("Lỗi: Thư viện PDF chưa sẵn sàng. Vui lòng chờ hoặc làm mới trang.");
+            console.error("PDF libraries not loaded yet for download attempt.");
+            return;
+        }
+        // Ensure access to libraries via window object at the time of execution
+        const html2canvas = window.html2canvas;
+        const jsPDF = window.jspdf?.jsPDF;
+
         if (!html2canvas || !jsPDF) {
-            setMessage("Lỗi: Thư viện html2canvas hoặc jsPDF chưa sẵn sàng. Vui lòng thử lại sau ít phút.");
-            console.error("html2canvas or jsPDF not available on window object");
+            setMessage("Lỗi nghiêm trọng: Thư viện PDF không khả dụng dù đã được báo cáo tải xong.");
+            console.error("Critical: html2canvas or jsPDF became unavailable after being reported as loaded.");
             return;
         }
 
@@ -1129,16 +1160,17 @@ const PdfDownloadButton = () => {
 
     return (
         <div className="text-center my-6">
-            <button 
-                id="downloadPdfBtn" 
+            <button
+                id="downloadPdfBtn"
                 onClick={handleDownloadPdf}
-                disabled={isGenerating}
-                className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg inline-flex items-center transition duration-150 ease-in-out disabled:opacity-50"
+                disabled={isGenerating || !libsLoaded}
+                className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg inline-flex items-center transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+                title={!libsLoaded ? "Đang tải thư viện PDF..." : "Tải xuống PDF"}
             >
                 <i className="fas fa-file-pdf mr-2"></i>
-                {isGenerating ? 'Đang tạo PDF...' : 'Tải xuống PDF'}
+                {isGenerating ? 'Đang tạo PDF...' : (!libsLoaded ? 'Đang tải thư viện...' : 'Tải xuống PDF')}
             </button>
-            {isGenerating && (
+            {isGenerating && !message && ( // Only show spinner if no error message
                 <div className="inline-flex items-center ml-4">
                     <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
