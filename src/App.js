@@ -1174,14 +1174,43 @@ const PdfDownloadButton = () => {
             console.log("PDF Gen: About to add image to PDF and save.");
 
             const pdf = new jsPDF({
-                orientation: pdfPageWidthPt > pdfPageHeightPt ? 'l' : 'p',
+                orientation: 'p', // Default to portrait for simplicity in text test
                 unit: 'pt',
-                format: [pdfPageWidthPt, pdfPageHeightPt]
+                format: 'a4' // Standard A4 size for text test
             });
 
-            pdf.addImage(combinedCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, pdfPageWidthPt, pdfPageHeightPt);
-            console.log("PDF Gen: Image added to PDF. About to save.");
-            pdf.save('thoi-khoa-bieu-pro.pdf');
+            // --- Test with simple text first ---
+            console.log("PDF Gen: Adding simple text to PDF for testing.");
+            pdf.setFontSize(12);
+            pdf.text("Hello, this is a PDF test from Thời Khóa Biểu Pro.", 20, 20);
+            
+            // --- Attempt to add the image (comment out for initial text-only test if needed) ---
+            if (combinedCanvas.width > 0 && combinedCanvas.height > 0) {
+                console.log("PDF Gen: Attempting to add combined canvas image to PDF.");
+                // Recalculate page size for image if we proceed with image
+                const imagePdfPageWidthPt = imgWidthPx * pxToPtScaleFactor;
+                const imagePdfPageHeightPt = imgHeightPx * pxToPtScaleFactor;
+                // If image is very large, consider adding it as a new page or scaling it down
+                // For now, let's assume it fits or jsPDF handles large images on a new page if format was set by image.
+                // To be safer, let's create a new PDF instance if we add image, or use addPage.
+                // For simplicity of this test, let's try adding to the same page, it might just be very large.
+                // Or, let's make a choice: text OR image for this test.
+                // For now, let's try adding the image AFTER the text.
+
+                // pdf.addPage([imagePdfPageWidthPt, imagePdfPageHeightPt], pdfPageWidthPt > pdfPageHeightPt ? 'l' : 'p'); // Optional: add new page for image
+                try {
+                    pdf.addImage(combinedCanvas.toDataURL('image/png', 1.0), 'PNG', 20, 40, imagePdfPageWidthPt * 0.2, imagePdfPageHeightPt * 0.2); // Scale down image for test
+                    console.log("PDF Gen: Image added to PDF. About to save.");
+                } catch (e) {
+                    console.error("PDF Gen: Error adding image to PDF:", e);
+                    pdf.text("Error adding schedule image to PDF.", 20, 40);
+                }
+            } else {
+                console.warn("PDF Gen: Combined canvas has zero width or height. Not adding image.");
+                pdf.text("Combined canvas for schedule image was empty.", 20, 40);
+            }
+            
+            pdf.save('thoi-khoa-bieu-pro-test.pdf');
             console.log("PDF Gen: PDF save initiated.");
 
         } catch (err) {
