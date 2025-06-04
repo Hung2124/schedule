@@ -1179,16 +1179,36 @@ const PdfDownloadButton = () => {
                 format: 'a4' // Standard A4 size for text test
             });
 
-            // --- Minimal PDF Test: Only Text (Adjusted) ---
-            console.log("PDF Gen: Performing MINIMAL PDF text test (adjusted).");
-            pdf.setFont("Helvetica", "normal"); // Explicitly set a default font
-            pdf.setFontSize(16); // Slightly smaller font size
-            pdf.text("PDF Test: Hello World! 123.", 20, 30); // Different text and position
-            console.log("PDF Gen: Minimal text (adjusted) added. About to save.");
-            
-            pdf.save('thoi-khoa-bieu-minimal-text-v2.pdf'); // New filename for this adjusted test
-            console.log("PDF Gen: Minimal PDF save initiated.");
-
+            // --- Restore Image Drawing ---
+            if (combinedCanvas.width > 0 && combinedCanvas.height > 0) {
+                console.log("PDF Gen: Attempting to add combined canvas image to PDF.");
+                try {
+                    // Use the calculated page dimensions for the PDF format
+                    const pdfForImage = new jsPDF({
+                        orientation: pdfPageWidthPt > pdfPageHeightPt ? 'l' : 'p',
+                        unit: 'pt',
+                        format: [pdfPageWidthPt, pdfPageHeightPt]
+                    });
+                    pdfForImage.addImage(combinedCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, pdfPageWidthPt, pdfPageHeightPt);
+                    console.log("PDF Gen: Image added to PDF. About to save.");
+                    pdfForImage.save('thoi-khoa-bieu-pro.pdf');
+                    console.log("PDF Gen: PDF with image save initiated.");
+                } catch (e) {
+                    console.error("PDF Gen: Error adding image to PDF or saving:", e);
+                    setMessage("Lỗi khi tạo PDF với hình ảnh: " + e.message);
+                    // Fallback: try to save a PDF with just text if image fails
+                    const errorPdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4'});
+                    errorPdf.text("Lỗi khi tạo hình ảnh lịch trình cho PDF.", 20, 20);
+                    errorPdf.text(e.message, 20, 40);
+                    errorPdf.save('thoi-khoa-bieu-error.pdf');
+                }
+            } else {
+                console.warn("PDF Gen: Combined canvas has zero width or height. Not adding image.");
+                setMessage("Lỗi: Không thể tạo hình ảnh từ lịch trình (canvas rỗng).");
+                const emptyCanvasPdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4'});
+                emptyCanvasPdf.text("Lỗi: Canvas kết hợp để tạo hình ảnh lịch trình bị rỗng.", 20, 20);
+                emptyCanvasPdf.save('thoi-khoa-bieu-empty-canvas.pdf');
+            }
         } catch (err) {
             console.error("Lỗi khi tạo PDF: ", err);
             setMessage("Đã có lỗi xảy ra khi tạo file PDF. Chi tiết: " + err.message);
