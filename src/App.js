@@ -1546,6 +1546,7 @@ const ActivityNotifier = () => {
 };
 
 // --- Main App Component ---
+// Trivial change to re-trigger deployment
 function App() {
     useEffect(() => {
         const fontAwesomeLink = document.createElement('link');
