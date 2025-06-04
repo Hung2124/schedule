@@ -575,27 +575,55 @@ const PomodoroTimer = () => {
     const cyclesBeforeLongBreak = 4;
 
     useEffect(() => {
-        if (window.Tone && !alarmSound.current) { 
-            alarmSound.current = new window.Tone.Synth().toDestination();
+        if (window.Tone && !alarmSound.current) {
+            try {
+                alarmSound.current = new window.Tone.Synth().toDestination();
+                console.log("PomodoroTimer: Tone.Synth initialized and connected to destination.");
+            } catch (e) {
+                console.error("PomodoroTimer: Error initializing Tone.Synth:", e);
+            }
+        } else {
+            if (!window.Tone) console.warn("PomodoroTimer: window.Tone not available on mount for synth init.");
+            if (alarmSound.current) console.log("PomodoroTimer: alarmSound.current already exists on mount.");
         }
     }, []);
 
     const playAlarm = useCallback(() => {
-        if (alarmSound.current && window.Tone) {
-            if (window.Tone.context.state !== 'running') {
-                window.Tone.start().then(() => {
-                    console.log("Tone.js context started for alarm.");
-                    alarmSound.current.triggerAttackRelease("C5", "8n", window.Tone.now());
-                    alarmSound.current.triggerAttackRelease("E5", "8n", window.Tone.now() + 0.2);
-                    alarmSound.current.triggerAttackRelease("G5", "8n", window.Tone.now() + 0.4);
-                }).catch(e => console.error("Error starting Tone.js context for alarm:", e));
-            } else {
+        console.log("PomodoroTimer: playAlarm called.");
+        if (!window.Tone) {
+            console.warn("PomodoroTimer: window.Tone is not available in playAlarm.");
+            return;
+        }
+        if (!alarmSound.current) {
+            console.warn("PomodoroTimer: alarmSound.current (synth) is not available in playAlarm.");
+            return;
+        }
+
+        console.log(`PomodoroTimer: Tone.context.state before start attempt: ${window.Tone.context.state}`);
+
+        const playNotes = () => {
+            console.log("PomodoroTimer: Attempting to trigger notes.");
+            try {
                 alarmSound.current.triggerAttackRelease("C5", "8n", window.Tone.now());
                 alarmSound.current.triggerAttackRelease("E5", "8n", window.Tone.now() + 0.2);
                 alarmSound.current.triggerAttackRelease("G5", "8n", window.Tone.now() + 0.4);
+                console.log("PomodoroTimer: Notes triggered.");
+            } catch (e) {
+                console.error("PomodoroTimer: Error triggering notes:", e);
             }
+        };
+
+        if (window.Tone.context.state !== 'running') {
+            console.log("PomodoroTimer: AudioContext not running, attempting to start...");
+            window.Tone.start().then(() => {
+                console.log("PomodoroTimer: Tone.js AudioContext started successfully via Tone.start().");
+                playNotes();
+            }).catch(e => {
+                console.error("PomodoroTimer: Error starting Tone.js AudioContext via Tone.start():", e);
+            });
         } else {
-            console.warn("Alarm sound or Tone.js not available.");
+            console.log("PomodoroTimer: AudioContext already running.");
+            playNotes();
         }
     }, []);
 
