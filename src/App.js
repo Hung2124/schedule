@@ -1266,8 +1266,8 @@ const ToolsSection = () => {
 };
 
 
-// --- Main App Component ---
-function App() {
+// --- Activity Notifier Component ---
+const ActivityNotifier = () => {
     const { schedule } = useSchedule(); // Access schedule data
     const notifiedTodayRef = useRef(new Set()); // To track sent notifications for the day
     const lastNotificationCheckDayRef = useRef(null); // To track the day for resetting notifiedTodayRef
@@ -1287,7 +1287,7 @@ function App() {
 
             // Reset notified set if it's a new day
             if (lastNotificationCheckDayRef.current !== currentDateHanoiStr) {
-                console.log("PomodoroTimer: New day, resetting notifiedToday set.");
+                console.log("ActivityNotifier: New day, resetting notifiedToday set."); // Changed prefix
                 notifiedTodayRef.current.clear();
                 lastNotificationCheckDayRef.current = currentDateHanoiStr;
             }
@@ -1302,7 +1302,7 @@ function App() {
                     if (activityForToday) {
                         const notificationId = `${currentDateHanoiStr}-${slot.time}-${activityForToday.activityName}`;
                         if (!notifiedTodayRef.current.has(notificationId)) {
-                            console.log(`PomodoroTimer: Sending notification for ${activityForToday.activityName} at ${slot.time}`);
+                            console.log(`ActivityNotifier: Sending notification for ${activityForToday.activityName} at ${slot.time}`); // Changed prefix
                             new Notification('Đến giờ học!', {
                                 body: `${activityForToday.activityName} (${slot.time})`,
                                 icon: '/logo192.png' // Using a public path for the icon
@@ -1323,7 +1323,11 @@ function App() {
         return () => clearInterval(intervalId);
     }, [schedule]); // Re-run if schedule changes
 
+    return null; // This component does not render anything visible
+};
 
+// --- Main App Component ---
+function App() {
     useEffect(() => {
         const fontAwesomeLink = document.createElement('link');
         fontAwesomeLink.rel = 'stylesheet';
@@ -1358,6 +1362,7 @@ function App() {
         <AuthProvider>
             <SettingsProvider>
                 <ScheduleProvider>
+                    <ActivityNotifier /> {/* Add the notifier component here */}
                     <div className="min-h-screen bg-gray-100 dark:bg-slate-900 text-gray-900 dark:text-gray-100 transition-colors duration-300">
                         <Navbar />
                         <main className="container mx-auto px-2 py-4 md:px-4 md:py-8">
