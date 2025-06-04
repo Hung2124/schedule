@@ -1179,13 +1179,14 @@ const PdfDownloadButton = () => {
                 format: 'a4' // Standard A4 size for text test
             });
 
-            // --- Minimal PDF Test: Only Text ---
-            console.log("PDF Gen: Performing MINIMAL PDF text test.");
-            pdf.setFontSize(20);
-            pdf.text("MINIMAL PDF TEST: Hello World!", 10, 10);
-            console.log("PDF Gen: Minimal text added. About to save.");
+            // --- Minimal PDF Test: Only Text (Adjusted) ---
+            console.log("PDF Gen: Performing MINIMAL PDF text test (adjusted).");
+            pdf.setFont("Helvetica", "normal"); // Explicitly set a default font
+            pdf.setFontSize(16); // Slightly smaller font size
+            pdf.text("PDF Test: Hello World! 123.", 20, 30); // Different text and position
+            console.log("PDF Gen: Minimal text (adjusted) added. About to save.");
             
-            pdf.save('thoi-khoa-bieu-minimal-test.pdf'); // New filename for this test
+            pdf.save('thoi-khoa-bieu-minimal-text-v2.pdf'); // New filename for this adjusted test
             console.log("PDF Gen: Minimal PDF save initiated.");
 
         } catch (err) {
