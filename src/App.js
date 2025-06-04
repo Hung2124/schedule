@@ -574,6 +574,13 @@ const PomodoroTimer = () => {
     const [customWork, setCustomWork] = useState(DFLT_WORK_MINUTES.toString());
     const [customShort, setCustomShort] = useState(DFLT_SHORT_BREAK_MINUTES.toString());
     const [customLong, setCustomLong] = useState(DFLT_LONG_BREAK_MINUTES.toString());
+    
+    useEffect(() => { // Ensure timer display updates if workDuration changes and it's a work session
+        if (isWorkSession && !isActive) {
+            setMinutes(workDuration);
+            setSeconds(0);
+        }
+    }, [workDuration, isWorkSession, isActive]);
 
     const playAlarm = useCallback(() => {
         console.log("PomodoroTimer: playAlarm called.");
@@ -619,10 +626,12 @@ const PomodoroTimer = () => {
                         const newCycles = isWorkSession ? cycles + 1 : cycles;
                         if (isWorkSession) setCycles(newCycles);
                         
-                        setIsWorkSession(!isWorkSession);
-                        if (!isWorkSession) { // Was break, now work
+                        const nextIsWorkSession = !isWorkSession;
+                        setIsWorkSession(nextIsWorkSession);
+
+                        if (nextIsWorkSession) { 
                             setMinutes(workDuration);
-                        } else { // Was work, now break
+                        } else { 
                             setMinutes(newCycles % CYCLES_BEFORE_LONG_BREAK === 0 ? longBreakDuration : shortBreakDuration);
                         }
                         setSeconds(0);
@@ -637,30 +646,37 @@ const PomodoroTimer = () => {
         }
         return () => clearInterval(interval);
     }, [isActive, seconds, minutes, isWorkSession, cycles, playAlarm, workDuration, shortBreakDuration, longBreakDuration]);
-
-    const updateTimerDisplay = (newMinutes) => {
-        if (!isActive) {
-            setMinutes(newMinutes);
-            setSeconds(0);
-        }
-    };
     
-    const handleSetDuration = (type, value) => {
-        const newDuration = parseInt(value, 10);
-        if (isNaN(newDuration) || newDuration < 1) return;
+    const handleSetDuration = (type, valueString) => {
+        const value = parseInt(valueString, 10);
+        if (isNaN(value) || value < 1) {
+            // Optionally provide feedback to user about invalid input
+            return;
+        }
 
         if (type === 'work') {
-            setWorkDuration(newDuration);
-            if (isWorkSession) updateTimerDisplay(newDuration);
+            setWorkDuration(value);
+            setCustomWork(valueString);
+            if (isWorkSession && !isActive) {
+                setMinutes(value);
+                setSeconds(0);
+            }
         } else if (type === 'short') {
-            setShortBreakDuration(newDuration);
-            if (!isWorkSession && cycles % CYCLES_BEFORE_LONG_BREAK !== 0) updateTimerDisplay(newDuration);
+            setShortBreakDuration(value);
+            setCustomShort(valueString);
+            if (!isWorkSession && !isActive && (cycles + 1) % CYCLES_BEFORE_LONG_BREAK !== 0) {
+                setMinutes(value);
+                setSeconds(0);
+            }
         } else if (type === 'long') {
-            setLongBreakDuration(newDuration);
-            if (!isWorkSession && cycles % CYCLES_BEFORE_LONG_BREAK === 0) updateTimerDisplay(newDuration);
+            setLongBreakDuration(value);
+            setCustomLong(valueString);
+            if (!isWorkSession && !isActive && (cycles + 1) % CYCLES_BEFORE_LONG_BREAK === 0) {
+                setMinutes(value);
+                setSeconds(0);
+            }
         }
     };
-
 
     const toggleTimer = async () => {
         if (window.Tone && window.Tone.context.state !== 'running') {
@@ -674,7 +690,7 @@ const PomodoroTimer = () => {
     const resetTimer = () => {
         setIsActive(false);
         setIsWorkSession(true);
-        setMinutes(workDuration);
+        setMinutes(workDuration); // Reset to current work duration
         setSeconds(0);
         setCycles(0);
     };
@@ -685,20 +701,20 @@ const PomodoroTimer = () => {
         const newCycles = isWorkSession ? cycles + 1 : cycles;
         if (isWorkSession) setCycles(newCycles);
 
-        if (isWorkSession) { // Skipping work session
-            setIsWorkSession(false);
-            setMinutes(newCycles % CYCLES_BEFORE_LONG_BREAK === 0 ? longBreakDuration : shortBreakDuration);
-        } else { // Skipping break session
-            setIsWorkSession(true);
+        const nextIsWorkSession = !isWorkSession;
+        setIsWorkSession(nextIsWorkSession);
+        if (nextIsWorkSession) {
             setMinutes(workDuration);
+        } else {
+            setMinutes(newCycles % CYCLES_BEFORE_LONG_BREAK === 0 ? longBreakDuration : shortBreakDuration);
         }
         setSeconds(0);
     };
     
     const presetDurations = {
         work: [20, 25, 30, 45, 50],
-        shortBreak: [5, 10],
-        longBreak: [10, 15, 20, 30]
+        shortBreak: [5, 10, 15],
+        longBreak: [10, 15, 20, 30, 60]
     };
 
     return (
@@ -707,43 +723,53 @@ const PomodoroTimer = () => {
                 <h2 className="text-xl md:text-2xl font-semibold text-indigo-700 dark:text-indigo-300">
                     Đồng hồ Pomodoro ({isWorkSession ? "Làm việc" : "Nghỉ ngơi"})
                 </h2>
-                <button onClick={() => setShowSettings(!showSettings)} className="p-2 text-gray-600 dark:text-gray-400 hover:text-indigo-500 dark:hover:text-indigo-300">
-                    <i className="fas fa-cog"></i>
+                <button 
+                    onClick={() => setShowSettings(!showSettings)} 
+                    className="p-2 text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                    aria-label="Cài đặt Pomodoro"
+                >
+                    <i className={`fas ${showSettings ? 'fa-times' : 'fa-cog'}`}></i>
                 </button>
             </div>
 
             {showSettings && (
-                <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-md mb-4 text-left space-y-4 bg-gray-50 dark:bg-slate-700">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Thời gian làm việc (phút)</label>
-                        <div className="flex items-center space-x-2 mt-1">
-                            <input type="number" min="1" value={customWork} onChange={(e) => setCustomWork(e.target.value)} className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-slate-600 dark:text-gray-200"/>
-                            <button onClick={() => handleSetDuration('work', customWork)} className="px-3 py-1 bg-indigo-500 text-white text-sm rounded-md hover:bg-indigo-600">Đặt</button>
+                <div className="p-3 md:p-4 border border-gray-200 dark:border-gray-700 rounded-md mb-4 text-left space-y-3 bg-gray-50 dark:bg-slate-700 shadow">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tùy chỉnh thời gian (phút):</p>
+                    {[
+                        { label: 'Làm việc', type: 'work', value: customWork, setter: setCustomWork, presets: presetDurations.work },
+                        { label: 'Nghỉ ngắn', type: 'short', value: customShort, setter: setCustomShort, presets: presetDurations.shortBreak },
+                        { label: 'Nghỉ dài', type: 'long', value: customLong, setter: setCustomLong, presets: presetDurations.longBreak }
+                    ].map(timerType => (
+                        <div key={timerType.type} className="py-2 border-b border-gray-200 dark:border-gray-600 last:border-b-0">
+                            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">{timerType.label}</label>
+                            <div className="flex items-center space-x-2 mt-1">
+                                <input 
+                                    type="number" 
+                                    min="1" 
+                                    value={timerType.value} 
+                                    onChange={(e) => timerType.setter(e.target.value)} 
+                                    className="w-16 px-2 py-1 border border-gray-300 dark:border-gray-500 rounded-md dark:bg-slate-600 dark:text-gray-200 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                />
+                                <button 
+                                    onClick={() => handleSetDuration(timerType.type, timerType.value)} 
+                                    className="px-3 py-1 bg-indigo-500 text-white text-xs rounded-md hover:bg-indigo-600 transition-colors"
+                                >
+                                    Đặt
+                                </button>
+                            </div>
+                            <div className="mt-1.5 space-x-1">
+                                {timerType.presets.map(p => (
+                                    <button 
+                                        key={`${timerType.type}-${p}`} 
+                                        onClick={() => { timerType.setter(p.toString()); handleSetDuration(timerType.type, p); }} 
+                                        className="px-1.5 py-0.5 text-[10px] bg-gray-200 dark:bg-gray-500 rounded hover:bg-gray-300 dark:hover:bg-gray-400 transition-colors"
+                                    >
+                                        {p}p
+                                    </button>
+                                ))}
+                            </div>
                         </div>
-                        <div className="mt-2 space-x-1">
-                            {presetDurations.work.map(p => <button key={`w-${p}`} onClick={() => {setCustomWork(p.toString()); handleSetDuration('work', p);}} className="px-2 py-1 text-xs bg-gray-200 dark:bg-gray-600 rounded hover:bg-gray-300 dark:hover:bg-gray-500">{p}p</button>)}
-                        </div>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nghỉ ngắn (phút)</label>
-                         <div className="flex items-center space-x-2 mt-1">
-                            <input type="number" min="1" value={customShort} onChange={(e) => setCustomShort(e.target.value)} className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-slate-600 dark:text-gray-200"/>
-                            <button onClick={() => handleSetDuration('short', customShort)} className="px-3 py-1 bg-indigo-500 text-white text-sm rounded-md hover:bg-indigo-600">Đặt</button>
-                        </div>
-                        <div className="mt-2 space-x-1">
-                            {presetDurations.shortBreak.map(p => <button key={`s-${p}`} onClick={() => {setCustomShort(p.toString()); handleSetDuration('short', p);}} className="px-2 py-1 text-xs bg-gray-200 dark:bg-gray-600 rounded hover:bg-gray-300 dark:hover:bg-gray-500">{p}p</button>)}
-                        </div>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nghỉ dài (phút)</label>
-                        <div className="flex items-center space-x-2 mt-1">
-                            <input type="number" min="1" value={customLong} onChange={(e) => setCustomLong(e.target.value)} className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-slate-600 dark:text-gray-200"/>
-                            <button onClick={() => handleSetDuration('long', customLong)} className="px-3 py-1 bg-indigo-500 text-white text-sm rounded-md hover:bg-indigo-600">Đặt</button>
-                        </div>
-                        <div className="mt-2 space-x-1">
-                            {presetDurations.longBreak.map(p => <button key={`l-${p}`} onClick={() => {setCustomLong(p.toString()); handleSetDuration('long', p);}} className="px-2 py-1 text-xs bg-gray-200 dark:bg-gray-600 rounded hover:bg-gray-300 dark:hover:bg-gray-500">{p}p</button>)}
-                        </div>
-                    </div>
+                    ))}
                 </div>
             )}
 
@@ -1498,8 +1524,8 @@ const ActivityNotifier = () => {
                         const notificationId = `${currentDateHanoiStr}-${slot.time}-${activityForToday.activityName}`;
                         if (!notifiedTodayRef.current.has(notificationId)) {
                             console.log(`ActivityNotifier: Sending notification for ${activityForToday.activityName} at ${slot.time}`); 
-                            new Notification('Đến giờ học!', {
-                                body: `${activityForToday.activityName} (${slot.time})`,
+                            new Notification(`Đến giờ ${activityForToday.activityName}!`, {
+                                body: `(${slot.time})`,
                                 icon: '/logo192.png' 
                             });
                             notifiedTodayRef.current.add(notificationId);
