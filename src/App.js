@@ -1274,79 +1274,44 @@ const PdfDownloadButton = () => {
             });
             console.log("PDF Gen: Notes canvas created:", canvasNotes.width, "x", canvasNotes.height);
 
-            try {
-                console.log("PDF Gen: Timetable canvas dataURL (first 100 chars):", canvasTimetable.toDataURL().substring(0, 100));
-                console.log("PDF Gen: Notes canvas dataURL (first 100 chars):", canvasNotes.toDataURL().substring(0, 100));
-            } catch (e) {
-                console.error("PDF Gen: Error getting dataURL from individual canvases:", e);
-            }
-
-            const combinedCanvas = document.createElement('canvas');
-            const ctx = combinedCanvas.getContext('2d');
-            const spacingBetweenElementsPx = Math.round(20 * captureScale);
-
-            combinedCanvas.width = Math.max(canvasTimetable.width, canvasNotes.width);
-            combinedCanvas.height = canvasTimetable.height + canvasNotes.height + spacingBetweenElementsPx;
-
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, combinedCanvas.width, combinedCanvas.height);
-
-            console.log("PDF Gen: Drawing timetable canvas onto combined canvas...");
-            const timetableX = (combinedCanvas.width - canvasTimetable.width) / 2;
-            ctx.drawImage(canvasTimetable, timetableX, 0);
-            console.log("PDF Gen: Timetable canvas drawn.");
-
-            console.log("PDF Gen: Drawing notes canvas onto combined canvas...");
-            const notesX = (combinedCanvas.width - canvasNotes.width) / 2;
-            ctx.drawImage(canvasNotes, notesX, canvasTimetable.height + spacingBetweenElementsPx);
-            console.log("PDF Gen: Notes canvas drawn.");
-
-            const imgWidthPx = combinedCanvas.width;
-            const imgHeightPx = combinedCanvas.height;
-            const pxToPtScaleFactor = 72 / 96;
-            let pdfPageWidthPt = imgWidthPx * pxToPtScaleFactor;
-            let pdfPageHeightPt = imgHeightPx * pxToPtScaleFactor;
+            // --- START DEBUG: Display canvases directly ---
+            setMessage("Đang hiển thị canvas để kiểm tra. Vui lòng xem hình ảnh lịch trình và ghi chú bên dưới trang.");
             
-            try {
-                console.log("PDF Gen: Combined canvas dataURL (first 100 chars):", combinedCanvas.toDataURL().substring(0, 100));
-            } catch (e) {
-                console.error("PDF Gen: Error getting dataURL from combined canvas:", e);
-            }
-            console.log("PDF Gen: About to add image to PDF and save.");
+            const debugContainer = document.getElementById('pdfDebugContainer') || document.createElement('div');
+            debugContainer.id = 'pdfDebugContainer';
+            debugContainer.innerHTML = ''; // Clear previous debug content
+            debugContainer.style.cssText = "border: 2px dashed red; padding: 10px; margin-top: 20px; text-align: left;";
             
-            if (combinedCanvas.width > 0 && combinedCanvas.height > 0) {
-                console.log("PDF Gen: Attempting to add combined canvas image to PDF.");
-                try {
-                    const pdfForImage = new jsPDF({
-                        orientation: pdfPageWidthPt > pdfPageHeightPt ? 'l' : 'p',
-                        unit: 'pt',
-                        format: [pdfPageWidthPt, pdfPageHeightPt]
-                    });
-                    pdfForImage.addImage(combinedCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, pdfPageWidthPt, pdfPageHeightPt);
-                    console.log("PDF Gen: Image added to PDF. About to save.");
-                    pdfForImage.save('thoi-khoa-bieu-pro.pdf');
-                    console.log("PDF Gen: PDF with image save initiated.");
-                } catch (e) {
-                    console.error("PDF Gen: Error adding image to PDF or saving:", e);
-                    setMessage("Lỗi khi tạo PDF với hình ảnh: " + e.message);
-                    const errorPdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4'});
-                    errorPdf.text("Lỗi khi tạo hình ảnh lịch trình cho PDF.", 20, 20);
-                    errorPdf.text(e.message, 20, 40);
-                    errorPdf.save('thoi-khoa-bieu-error.pdf');
-                }
-            } else {
-                console.warn("PDF Gen: Combined canvas has zero width or height. Not adding image.");
-                setMessage("Lỗi: Không thể tạo hình ảnh từ lịch trình (canvas rỗng).");
-                const emptyCanvasPdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4'});
-                emptyCanvasPdf.text("Lỗi: Canvas kết hợp để tạo hình ảnh lịch trình bị rỗng.", 20, 20);
-                emptyCanvasPdf.save('thoi-khoa-bieu-empty-canvas.pdf');
-            }
+            const title1 = document.createElement('h3');
+            title1.innerText = "Ảnh Lịch Trình (Timetable Canvas):";
+            debugContainer.appendChild(title1);
+            canvasTimetable.style.border = "1px solid blue";
+            canvasTimetable.style.maxWidth = "100%"; 
+            canvasTimetable.style.height = "auto";
+            debugContainer.appendChild(canvasTimetable);
+
+            const title2 = document.createElement('h3');
+            title2.innerText = "Ảnh Ghi Chú (Notes Canvas):";
+            title2.style.marginTop = "20px";
+            debugContainer.appendChild(title2);
+            canvasNotes.style.border = "1px solid green";
+            canvasNotes.style.maxWidth = "100%";
+            canvasNotes.style.height = "auto";
+            debugContainer.appendChild(canvasNotes);
+            
+            document.body.appendChild(debugContainer);
+            setIsGenerating(false);
+            console.log("PDF Gen Debug: Canvases appended to body for visual inspection.");
+            return; // Stop here for debugging
+            // --- END DEBUG ---
+
         } catch (err) {
-            console.error("Lỗi khi tạo PDF: ", err);
-            setMessage("Đã có lỗi xảy ra khi tạo file PDF. Chi tiết: " + err.message);
+            console.error("Lỗi khi tạo PDF hoặc debug canvas: ", err);
+            setMessage("Đã có lỗi xảy ra. Chi tiết: " + err.message);
             if (tableWrapper && originalOverflow !== undefined) tableWrapper.style.overflowX = originalOverflow;
         } finally {
-            setIsGenerating(false);
+            // For debug, we might not want to set isGenerating to false if we returned early
+            // setIsGenerating(false); // Keep it true if we returned for debug, or manage as needed
         }
     };
 
