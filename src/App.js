@@ -1260,7 +1260,8 @@ const PdfDownloadButton = () => {
 
             console.log("PDF Gen: Capturing timetable...");
             const canvasTimetable = await html2canvas(timetableTableElement, {
-                scale: captureScale, useCORS: true, logging: true, backgroundColor: '#ffffff', 
+                scale: captureScale, useCORS: true, logging: true, backgroundColor: '#ffffff',
+                foreignObjectRendering: true, 
                 width: timetableTableElement.offsetWidth, height: timetableTableElement.offsetHeight,
             });
             console.log("PDF Gen: Timetable canvas created:", canvasTimetable.width, "x", canvasTimetable.height);
@@ -1268,7 +1269,8 @@ const PdfDownloadButton = () => {
 
             console.log("PDF Gen: Capturing notes...");
             const canvasNotes = await html2canvas(notesElement, {
-                scale: captureScale, useCORS: true, logging: true, backgroundColor: '#ffffff', 
+                scale: captureScale, useCORS: true, logging: true, backgroundColor: '#ffffff',
+                foreignObjectRendering: true, 
                 width: notesElement.scrollWidth, height: notesElement.scrollHeight,
             });
             console.log("PDF Gen: Notes canvas created:", canvasNotes.width, "x", canvasNotes.height);
