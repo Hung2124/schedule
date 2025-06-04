@@ -1132,6 +1132,14 @@ const PdfDownloadButton = () => {
             });
             console.log("PDF Gen: Notes canvas created:", canvasNotes.width, "x", canvasNotes.height);
 
+            // Log a snippet of data URLs to check if they are empty/transparent
+            try {
+                console.log("PDF Gen: Timetable canvas dataURL (first 100 chars):", canvasTimetable.toDataURL().substring(0, 100));
+                console.log("PDF Gen: Notes canvas dataURL (first 100 chars):", canvasNotes.toDataURL().substring(0, 100));
+            } catch (e) {
+                console.error("PDF Gen: Error getting dataURL from individual canvases:", e);
+            }
+
             const combinedCanvas = document.createElement('canvas');
             const ctx = combinedCanvas.getContext('2d');
             const spacingBetweenElementsPx = Math.round(20 * captureScale);
@@ -1142,17 +1150,28 @@ const PdfDownloadButton = () => {
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, combinedCanvas.width, combinedCanvas.height);
 
+            console.log("PDF Gen: Drawing timetable canvas onto combined canvas...");
             const timetableX = (combinedCanvas.width - canvasTimetable.width) / 2;
             ctx.drawImage(canvasTimetable, timetableX, 0);
+            console.log("PDF Gen: Timetable canvas drawn.");
 
+            console.log("PDF Gen: Drawing notes canvas onto combined canvas...");
             const notesX = (combinedCanvas.width - canvasNotes.width) / 2;
             ctx.drawImage(canvasNotes, notesX, canvasTimetable.height + spacingBetweenElementsPx);
+            console.log("PDF Gen: Notes canvas drawn.");
 
             const imgWidthPx = combinedCanvas.width;
             const imgHeightPx = combinedCanvas.height;
             const pxToPtScaleFactor = 72 / 96;
             let pdfPageWidthPt = imgWidthPx * pxToPtScaleFactor;
             let pdfPageHeightPt = imgHeightPx * pxToPtScaleFactor;
+            
+            try {
+                console.log("PDF Gen: Combined canvas dataURL (first 100 chars):", combinedCanvas.toDataURL().substring(0, 100));
+            } catch (e) {
+                console.error("PDF Gen: Error getting dataURL from combined canvas:", e);
+            }
+            console.log("PDF Gen: About to add image to PDF and save.");
 
             const pdf = new jsPDF({
                 orientation: pdfPageWidthPt > pdfPageHeightPt ? 'l' : 'p',
@@ -1161,7 +1180,9 @@ const PdfDownloadButton = () => {
             });
 
             pdf.addImage(combinedCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, pdfPageWidthPt, pdfPageHeightPt);
+            console.log("PDF Gen: Image added to PDF. About to save.");
             pdf.save('thoi-khoa-bieu-pro.pdf');
+            console.log("PDF Gen: PDF save initiated.");
 
         } catch (err) {
             console.error("Lỗi khi tạo PDF: ", err);
