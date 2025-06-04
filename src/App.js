@@ -1115,7 +1115,7 @@ const PdfDownloadButton = () => {
             }
             await new Promise(resolve => setTimeout(resolve, 200)); // Allow UI to update if overflow change affects layout
 
-            const captureScale = 2.5;
+            const captureScale = 1.5; // Reduced scale from 2.5 to 1.5
 
             console.log("PDF Gen: Capturing timetable...");
             const canvasTimetable = await html2canvas(timetableTableElement, {
