@@ -224,32 +224,25 @@ const AuthProvider = ({ children }) => {
                 setLoadingAuth(false);
             } else {
                 console.log("AuthProvider: No current Firebase user.");
-                setLoadingAuth(false); // Set loading to false as no user is initially found
-                                       // The UI will show the Google Sign-In button.
+                setLoadingAuth(false); 
             }
         });
 
-        // Attempt to sign in with custom token if available (e.g., from Canvas environment)
-        // This is done once on mount. If it fails, onAuthStateChanged will eventually report null user.
         if (typeof window.__initial_auth_token !== 'undefined' && window.__initial_auth_token) {
             console.log("AuthProvider: __initial_auth_token present. Attempting signInWithCustomToken on mount.");
-            setLoadingAuth(true); // Set loading true while attempting custom token sign-in
+            setLoadingAuth(true); 
             signInWithCustomToken(auth, window.__initial_auth_token)
                 .then(() => {
                     console.log("AuthProvider: signInWithCustomToken potentially successful, onAuthStateChanged will confirm.");
-                    // setLoadingAuth(false) will be handled by onAuthStateChanged
                 })
                 .catch(error => {
                     console.error("AuthProvider: Error with signInWithCustomToken on mount:", error.code, error.message);
-                    // If custom token fails, user remains null, and loading is set to false.
-                    // This allows the Google Sign-In button to appear.
                     setUser(null);
                     setLoadingAuth(false);
                 });
         } else {
-            setLoadingAuth(false); // No custom token, so initial auth state is determined quickly.
+            setLoadingAuth(false); 
         }
-
 
         return () => {
             console.log("AuthProvider: Unsubscribing from onAuthStateChanged.");
@@ -294,7 +287,6 @@ const AuthProvider = ({ children }) => {
             }
         }
     };
-
 
     return (
         <AuthContext.Provider value={{ user, loadingAuth, handleSignOut, handleGoogleSignIn }}>
@@ -376,7 +368,6 @@ const SettingsProvider = ({ children }) => {
      const updateScheduleNameInSettings = (newName) => { 
         updateSettings({ scheduleName: newName });
     };
-
 
     return (
         <SettingsContext.Provider value={{ settings, loadingSettings, updateSettings, toggleDarkMode, updateSubjectColor, updateScheduleNameInSettings }}>
@@ -562,74 +553,59 @@ const Navbar = () => {
 };
 
 const PomodoroTimer = () => {
-    const [minutes, setMinutes] = useState(25);
+    const DFLT_WORK_MINUTES = 25;
+    const DFLT_SHORT_BREAK_MINUTES = 5;
+    const DFLT_LONG_BREAK_MINUTES = 15;
+    const CYCLES_BEFORE_LONG_BREAK = 4;
+
+    const [workDuration, setWorkDuration] = useState(DFLT_WORK_MINUTES);
+    const [shortBreakDuration, setShortBreakDuration] = useState(DFLT_SHORT_BREAK_MINUTES);
+    const [longBreakDuration, setLongBreakDuration] = useState(DFLT_LONG_BREAK_MINUTES);
+
+    const [minutes, setMinutes] = useState(workDuration);
     const [seconds, setSeconds] = useState(0);
     const [isActive, setIsActive] = useState(false);
     const [isWorkSession, setIsWorkSession] = useState(true);
     const [cycles, setCycles] = useState(0);
-    const alarmSound = useRef(null); 
+    const alarmSound = useRef(null);
+    const [showSettings, setShowSettings] = useState(false);
 
-    const workMinutes = 25;
-    const shortBreakMinutes = 5;
-    const longBreakMinutes = 15;
-    const cyclesBeforeLongBreak = 4;
-
-    // useEffect for synth initialization is removed.
+    // States for custom input fields
+    const [customWork, setCustomWork] = useState(DFLT_WORK_MINUTES.toString());
+    const [customShort, setCustomShort] = useState(DFLT_SHORT_BREAK_MINUTES.toString());
+    const [customLong, setCustomLong] = useState(DFLT_LONG_BREAK_MINUTES.toString());
 
     const playAlarm = useCallback(() => {
         console.log("PomodoroTimer: playAlarm called.");
-
         if (!window.Tone) {
             console.warn("PomodoroTimer: playAlarm - window.Tone is not available.");
             return;
         }
-
-        // Initialize synth if it hasn't been already (lazy initialization)
         if (!alarmSound.current) {
             console.log("PomodoroTimer: playAlarm - alarmSound.current is null, attempting to initialize Tone.Synth now.");
             try {
                 alarmSound.current = new window.Tone.Synth().toDestination();
-                console.log("PomodoroTimer: playAlarm - Tone.Synth initialized successfully.");
             } catch (e) {
                 console.error("PomodoroTimer: playAlarm - Error initializing Tone.Synth:", e);
-                return; // Don't proceed if synth init fails
+                return;
             }
         }
-        
-        // At this point, alarmSound.current should be valid if initialization didn't throw.
-        if (!alarmSound.current) {
-             console.error("PomodoroTimer: playAlarm - alarmSound.current is STILL null after attempting init. This should not happen.");
-             return;
-        }
-
-        console.log(`PomodoroTimer: playAlarm - Tone.context.state before start attempt: ${window.Tone.context.state}`);
+        if (!alarmSound.current) return;
 
         const playNotes = () => {
-            console.log("PomodoroTimer: playAlarm - Attempting to trigger notes.");
             try {
                 alarmSound.current.triggerAttackRelease("C5", "8n", window.Tone.now());
                 alarmSound.current.triggerAttackRelease("E5", "8n", window.Tone.now() + 0.2);
                 alarmSound.current.triggerAttackRelease("G5", "8n", window.Tone.now() + 0.4);
-                console.log("PomodoroTimer: playAlarm - Notes triggered.");
-            } catch (e) {
-                console.error("PomodoroTimer: playAlarm - Error triggering notes:", e);
-            }
+            } catch (e) { console.error("PomodoroTimer: playAlarm - Error triggering notes:", e); }
         };
 
         if (window.Tone.context.state !== 'running') {
-            console.log("PomodoroTimer: playAlarm - AudioContext not running, attempting to start...");
-            window.Tone.start().then(() => {
-                console.log("PomodoroTimer: playAlarm - Tone.js AudioContext started successfully via Tone.start().");
-                playNotes();
-            }).catch(e => {
-                console.error("PomodoroTimer: playAlarm - Error starting Tone.js AudioContext via Tone.start():", e);
-            });
+            window.Tone.start().then(playNotes).catch(e => console.error("PomodoroTimer: playAlarm - Error starting Tone.js AudioContext:", e));
         } else {
-            console.log("PomodoroTimer: playAlarm - AudioContext already running.");
             playNotes();
         }
     }, []);
-
 
     useEffect(() => {
         let interval = null;
@@ -639,15 +615,15 @@ const PomodoroTimer = () => {
                     if (minutes === 0) {
                         clearInterval(interval);
                         setIsActive(false);
-                        playAlarm(); 
-                        if (isWorkSession) {
-                            const newCycles = cycles + 1;
-                            setCycles(newCycles);
-                            setIsWorkSession(false);
-                            setMinutes(newCycles % cyclesBeforeLongBreak === 0 ? longBreakMinutes : shortBreakMinutes);
-                        } else {
-                            setIsWorkSession(true);
-                            setMinutes(workMinutes);
+                        playAlarm();
+                        const newCycles = isWorkSession ? cycles + 1 : cycles;
+                        if (isWorkSession) setCycles(newCycles);
+                        
+                        setIsWorkSession(!isWorkSession);
+                        if (!isWorkSession) { // Was break, now work
+                            setMinutes(workDuration);
+                        } else { // Was work, now break
+                            setMinutes(newCycles % CYCLES_BEFORE_LONG_BREAK === 0 ? longBreakDuration : shortBreakDuration);
                         }
                         setSeconds(0);
                     } else {
@@ -660,45 +636,117 @@ const PomodoroTimer = () => {
             }, 1000);
         }
         return () => clearInterval(interval);
-    }, [isActive, seconds, minutes, isWorkSession, cycles, playAlarm]);
+    }, [isActive, seconds, minutes, isWorkSession, cycles, playAlarm, workDuration, shortBreakDuration, longBreakDuration]);
+
+    const updateTimerDisplay = (newMinutes) => {
+        if (!isActive) {
+            setMinutes(newMinutes);
+            setSeconds(0);
+        }
+    };
+    
+    const handleSetDuration = (type, value) => {
+        const newDuration = parseInt(value, 10);
+        if (isNaN(newDuration) || newDuration < 1) return;
+
+        if (type === 'work') {
+            setWorkDuration(newDuration);
+            if (isWorkSession) updateTimerDisplay(newDuration);
+        } else if (type === 'short') {
+            setShortBreakDuration(newDuration);
+            if (!isWorkSession && cycles % CYCLES_BEFORE_LONG_BREAK !== 0) updateTimerDisplay(newDuration);
+        } else if (type === 'long') {
+            setLongBreakDuration(newDuration);
+            if (!isWorkSession && cycles % CYCLES_BEFORE_LONG_BREAK === 0) updateTimerDisplay(newDuration);
+        }
+    };
+
 
     const toggleTimer = async () => {
         if (window.Tone && window.Tone.context.state !== 'running') {
             try {
                 await window.Tone.start();
-                console.log("Tone.js context started on timer toggle.");
-            } catch (e) {
-                console.error("Error starting Tone.js context:", e);
-                return;
-            }
+            } catch (e) { console.error("Error starting Tone.js context:", e); return; }
         }
         setIsActive(!isActive);
     };
 
     const resetTimer = () => {
-        setIsActive(false); setIsWorkSession(true);
-        setMinutes(workMinutes); setSeconds(0); setCycles(0);
+        setIsActive(false);
+        setIsWorkSession(true);
+        setMinutes(workDuration);
+        setSeconds(0);
+        setCycles(0);
     };
+
     const skipSession = () => {
         setIsActive(false);
-        playAlarm(); 
-        if (isWorkSession) {
-            const newCycles = cycles + 1;
-            setCycles(newCycles);
+        playAlarm();
+        const newCycles = isWorkSession ? cycles + 1 : cycles;
+        if (isWorkSession) setCycles(newCycles);
+
+        if (isWorkSession) { // Skipping work session
             setIsWorkSession(false);
-            setMinutes(newCycles % cyclesBeforeLongBreak === 0 ? longBreakMinutes : shortBreakMinutes);
-        } else {
+            setMinutes(newCycles % CYCLES_BEFORE_LONG_BREAK === 0 ? longBreakDuration : shortBreakDuration);
+        } else { // Skipping break session
             setIsWorkSession(true);
-            setMinutes(workMinutes);
+            setMinutes(workDuration);
         }
         setSeconds(0);
+    };
+    
+    const presetDurations = {
+        work: [20, 25, 30, 45, 50],
+        shortBreak: [5, 10],
+        longBreak: [10, 15, 20, 30]
     };
 
     return (
         <div className="my-6 p-4 md:p-6 bg-white dark:bg-slate-800 rounded-lg shadow-lg max-w-md mx-auto text-center">
-            <h2 className="text-xl md:text-2xl font-semibold mb-4 text-indigo-700 dark:text-indigo-300">
-                Đồng hồ Pomodoro ({isWorkSession ? "Làm việc" : "Nghỉ ngơi"})
-            </h2>
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl md:text-2xl font-semibold text-indigo-700 dark:text-indigo-300">
+                    Đồng hồ Pomodoro ({isWorkSession ? "Làm việc" : "Nghỉ ngơi"})
+                </h2>
+                <button onClick={() => setShowSettings(!showSettings)} className="p-2 text-gray-600 dark:text-gray-400 hover:text-indigo-500 dark:hover:text-indigo-300">
+                    <i className="fas fa-cog"></i>
+                </button>
+            </div>
+
+            {showSettings && (
+                <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-md mb-4 text-left space-y-4 bg-gray-50 dark:bg-slate-700">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Thời gian làm việc (phút)</label>
+                        <div className="flex items-center space-x-2 mt-1">
+                            <input type="number" min="1" value={customWork} onChange={(e) => setCustomWork(e.target.value)} className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-slate-600 dark:text-gray-200"/>
+                            <button onClick={() => handleSetDuration('work', customWork)} className="px-3 py-1 bg-indigo-500 text-white text-sm rounded-md hover:bg-indigo-600">Đặt</button>
+                        </div>
+                        <div className="mt-2 space-x-1">
+                            {presetDurations.work.map(p => <button key={`w-${p}`} onClick={() => {setCustomWork(p.toString()); handleSetDuration('work', p);}} className="px-2 py-1 text-xs bg-gray-200 dark:bg-gray-600 rounded hover:bg-gray-300 dark:hover:bg-gray-500">{p}p</button>)}
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nghỉ ngắn (phút)</label>
+                         <div className="flex items-center space-x-2 mt-1">
+                            <input type="number" min="1" value={customShort} onChange={(e) => setCustomShort(e.target.value)} className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-slate-600 dark:text-gray-200"/>
+                            <button onClick={() => handleSetDuration('short', customShort)} className="px-3 py-1 bg-indigo-500 text-white text-sm rounded-md hover:bg-indigo-600">Đặt</button>
+                        </div>
+                        <div className="mt-2 space-x-1">
+                            {presetDurations.shortBreak.map(p => <button key={`s-${p}`} onClick={() => {setCustomShort(p.toString()); handleSetDuration('short', p);}} className="px-2 py-1 text-xs bg-gray-200 dark:bg-gray-600 rounded hover:bg-gray-300 dark:hover:bg-gray-500">{p}p</button>)}
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nghỉ dài (phút)</label>
+                        <div className="flex items-center space-x-2 mt-1">
+                            <input type="number" min="1" value={customLong} onChange={(e) => setCustomLong(e.target.value)} className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-slate-600 dark:text-gray-200"/>
+                            <button onClick={() => handleSetDuration('long', customLong)} className="px-3 py-1 bg-indigo-500 text-white text-sm rounded-md hover:bg-indigo-600">Đặt</button>
+                        </div>
+                        <div className="mt-2 space-x-1">
+                            {presetDurations.longBreak.map(p => <button key={`l-${p}`} onClick={() => {setCustomLong(p.toString()); handleSetDuration('long', p);}} className="px-2 py-1 text-xs bg-gray-200 dark:bg-gray-600 rounded hover:bg-gray-300 dark:hover:bg-gray-500">{p}p</button>)}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className={`text-5xl md:text-6xl font-bold mb-6 ${isWorkSession ? 'text-red-500 dark:text-red-400' : 'text-green-500 dark:text-green-400'}`}>
                 {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
             </div>
@@ -1182,11 +1230,11 @@ const PdfDownloadButton = () => {
             }
             await new Promise(resolve => setTimeout(resolve, 200)); // Allow UI to update if overflow change affects layout
 
-            const captureScale = 1.5; // Reduced scale from 2.5 to 1.5
+            const captureScale = 1.5; 
 
             console.log("PDF Gen: Capturing timetable...");
             const canvasTimetable = await html2canvas(timetableTableElement, {
-                scale: captureScale, useCORS: true, logging: true, backgroundColor: '#ffffff', // Enabled logging for html2canvas
+                scale: captureScale, useCORS: true, logging: true, backgroundColor: '#ffffff', 
                 width: timetableTableElement.offsetWidth, height: timetableTableElement.offsetHeight,
             });
             console.log("PDF Gen: Timetable canvas created:", canvasTimetable.width, "x", canvasTimetable.height);
@@ -1194,12 +1242,11 @@ const PdfDownloadButton = () => {
 
             console.log("PDF Gen: Capturing notes...");
             const canvasNotes = await html2canvas(notesElement, {
-                scale: captureScale, useCORS: true, logging: true, backgroundColor: '#ffffff', // Changed to white, enabled logging
+                scale: captureScale, useCORS: true, logging: true, backgroundColor: '#ffffff', 
                 width: notesElement.scrollWidth, height: notesElement.scrollHeight,
             });
             console.log("PDF Gen: Notes canvas created:", canvasNotes.width, "x", canvasNotes.height);
 
-            // Log a snippet of data URLs to check if they are empty/transparent
             try {
                 console.log("PDF Gen: Timetable canvas dataURL (first 100 chars):", canvasTimetable.toDataURL().substring(0, 100));
                 console.log("PDF Gen: Notes canvas dataURL (first 100 chars):", canvasNotes.toDataURL().substring(0, 100));
@@ -1239,12 +1286,10 @@ const PdfDownloadButton = () => {
                 console.error("PDF Gen: Error getting dataURL from combined canvas:", e);
             }
             console.log("PDF Gen: About to add image to PDF and save.");
-
-            // --- Restore Image Drawing ---
+            
             if (combinedCanvas.width > 0 && combinedCanvas.height > 0) {
                 console.log("PDF Gen: Attempting to add combined canvas image to PDF.");
                 try {
-                    // Use the calculated page dimensions for the PDF format
                     const pdfForImage = new jsPDF({
                         orientation: pdfPageWidthPt > pdfPageHeightPt ? 'l' : 'p',
                         unit: 'pt',
@@ -1257,7 +1302,6 @@ const PdfDownloadButton = () => {
                 } catch (e) {
                     console.error("PDF Gen: Error adding image to PDF or saving:", e);
                     setMessage("Lỗi khi tạo PDF với hình ảnh: " + e.message);
-                    // Fallback: try to save a PDF with just text if image fails
                     const errorPdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4'});
                     errorPdf.text("Lỗi khi tạo hình ảnh lịch trình cho PDF.", 20, 20);
                     errorPdf.text(e.message, 20, 40);
@@ -1291,7 +1335,7 @@ const PdfDownloadButton = () => {
                 <i className="fas fa-file-pdf mr-2"></i>
                 {isGenerating ? 'Đang tạo PDF...' : (!libsLoaded ? 'Đang tải thư viện...' : 'Tải xuống PDF')}
             </button>
-            {isGenerating && !message && ( // Only show spinner if no error message
+            {isGenerating && !message && ( 
                 <div className="inline-flex items-center ml-4">
                     <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -1421,32 +1465,30 @@ const ToolsSection = () => {
 
 // --- Activity Notifier Component ---
 const ActivityNotifier = () => {
-    const { schedule } = useSchedule(); // Access schedule data
-    const notifiedTodayRef = useRef(new Set()); // To track sent notifications for the day
-    const lastNotificationCheckDayRef = useRef(null); // To track the day for resetting notifiedTodayRef
+    const { schedule } = useSchedule(); 
+    const notifiedTodayRef = useRef(new Set()); 
+    const lastNotificationCheckDayRef = useRef(null); 
 
     useEffect(() => {
-        // Notification checking logic
         const checkScheduleAndNotify = () => {
             if (Notification.permission !== 'granted' || !schedule || !schedule.timeSlots) {
                 return;
             }
 
             const nowHanoi = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
-            const currentDayHanoi = nowHanoi.toLocaleDateString('vi-VN', { weekday: 'long' }); // e.g., "Thứ Hai"
+            const currentDayHanoi = nowHanoi.toLocaleDateString('vi-VN', { weekday: 'long' }); 
             const currentHourHanoi = nowHanoi.getHours();
             const currentMinuteHanoi = nowHanoi.getMinutes();
-            const currentDateHanoiStr = nowHanoi.toDateString(); // For daily reset
+            const currentDateHanoiStr = nowHanoi.toDateString(); 
 
-            // Reset notified set if it's a new day
             if (lastNotificationCheckDayRef.current !== currentDateHanoiStr) {
-                console.log("ActivityNotifier: New day, resetting notifiedToday set."); // Changed prefix
+                console.log("ActivityNotifier: New day, resetting notifiedToday set."); 
                 notifiedTodayRef.current.clear();
                 lastNotificationCheckDayRef.current = currentDateHanoiStr;
             }
             
             schedule.timeSlots.forEach(slot => {
-                const slotTimeParts = slot.time.split(' - ')[0].split(':'); // "5:00" -> ["5", "00"]
+                const slotTimeParts = slot.time.split(' - ')[0].split(':'); 
                 const slotHour = parseInt(slotTimeParts[0], 10);
                 const slotMinute = parseInt(slotTimeParts[1], 10);
 
@@ -1455,10 +1497,10 @@ const ActivityNotifier = () => {
                     if (activityForToday) {
                         const notificationId = `${currentDateHanoiStr}-${slot.time}-${activityForToday.activityName}`;
                         if (!notifiedTodayRef.current.has(notificationId)) {
-                            console.log(`ActivityNotifier: Sending notification for ${activityForToday.activityName} at ${slot.time}`); // Changed prefix
+                            console.log(`ActivityNotifier: Sending notification for ${activityForToday.activityName} at ${slot.time}`); 
                             new Notification('Đến giờ học!', {
                                 body: `${activityForToday.activityName} (${slot.time})`,
-                                icon: '/logo192.png' // Using a public path for the icon
+                                icon: '/logo192.png' 
                             });
                             notifiedTodayRef.current.add(notificationId);
                         }
@@ -1467,16 +1509,12 @@ const ActivityNotifier = () => {
             });
         };
 
-        // Check every 30 seconds
         const intervalId = setInterval(checkScheduleAndNotify, 30000); 
-
-        // Initial check on mount
         checkScheduleAndNotify();
-
         return () => clearInterval(intervalId);
-    }, [schedule]); // Re-run if schedule changes
+    }, [schedule]); 
 
-    return null; // This component does not render anything visible
+    return null; 
 };
 
 // --- Main App Component ---
@@ -1487,7 +1525,6 @@ function App() {
         fontAwesomeLink.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css';
         document.head.appendChild(fontAwesomeLink);
 
-        // Load external libraries for PDF and Audio
         const libraries = [
             { id: 'html2canvas-lib', src: 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js' },
             { id: 'jspdf-lib', src: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js' },
@@ -1515,7 +1552,7 @@ function App() {
         <AuthProvider>
             <SettingsProvider>
                 <ScheduleProvider>
-                    <ActivityNotifier /> {/* Add the notifier component here */}
+                    <ActivityNotifier /> 
                     <div className="min-h-screen bg-gray-100 dark:bg-slate-900 text-gray-900 dark:text-gray-100 transition-colors duration-300">
                         <Navbar />
                         <main className="container mx-auto px-2 py-4 md:px-4 md:py-8">
@@ -1537,19 +1574,3 @@ function App() {
 }
 
 export default App;
-<environment_details>
-# VSCode Visible Files
-schedule-app/src/App.js
-
-# VSCode Open Tabs
-schedule-app/src/App.js
-
-# Current Time
-6/4/2025, 8:44:37 PM (Asia/Bangkok, UTC+7:00)
-
-# Context Window Usage
-982,453 / 1,048.576K tokens used (94%)
-
-# Current Mode
-ACT MODE
-</environment_details>
