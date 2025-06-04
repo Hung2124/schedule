@@ -1240,12 +1240,6 @@ const PdfDownloadButton = () => {
             }
             console.log("PDF Gen: About to add image to PDF and save.");
 
-            const pdf = new jsPDF({
-                orientation: 'p', // Default to portrait for simplicity in text test
-                unit: 'pt',
-                format: 'a4' // Standard A4 size for text test
-            });
-
             // --- Restore Image Drawing ---
             if (combinedCanvas.width > 0 && combinedCanvas.height > 0) {
                 console.log("PDF Gen: Attempting to add combined canvas image to PDF.");
@@ -1543,3 +1537,19 @@ function App() {
 }
 
 export default App;
+<environment_details>
+# VSCode Visible Files
+schedule-app/src/App.js
+
+# VSCode Open Tabs
+schedule-app/src/App.js
+
+# Current Time
+6/4/2025, 8:44:37 PM (Asia/Bangkok, UTC+7:00)
+
+# Context Window Usage
+982,453 / 1,048.576K tokens used (94%)
+
+# Current Mode
+ACT MODE
+</environment_details>
