@@ -1091,32 +1091,46 @@ const PdfDownloadButton = () => {
         const notesElement = document.getElementById('notesContentForPdf');
         const tableWrapper = document.getElementById('tableWrapper');
 
-        if (!timetableTableElement || !notesElement) {
-            setMessage("Lỗi: Không tìm thấy phần tử để tạo PDF.");
+        if (!timetableTableElement) {
+            console.error("PDF Gen: timetableTableElement not found");
+            setMessage("Lỗi: Không tìm thấy bảng thời khóa biểu để tạo PDF.");
+            setIsGenerating(false);
+            return;
+        }
+        if (!notesElement) {
+            console.error("PDF Gen: notesElement not found");
+            setMessage("Lỗi: Không tìm thấy phần ghi chú để tạo PDF.");
             setIsGenerating(false);
             return;
         }
         
+        console.log("PDF Gen: Timetable Element Dims:", timetableTableElement.offsetWidth, "x", timetableTableElement.offsetHeight);
+        console.log("PDF Gen: Notes Element Dims:", notesElement.scrollWidth, "x", notesElement.scrollHeight);
+
         let originalOverflow;
         try {
             if (tableWrapper) {
                 originalOverflow = tableWrapper.style.overflowX;
                 tableWrapper.style.overflowX = 'visible';
             }
-            await new Promise(resolve => setTimeout(resolve, 200));
+            await new Promise(resolve => setTimeout(resolve, 200)); // Allow UI to update if overflow change affects layout
 
             const captureScale = 2.5;
 
+            console.log("PDF Gen: Capturing timetable...");
             const canvasTimetable = await html2canvas(timetableTableElement, {
-                scale: captureScale, useCORS: true, logging: false, backgroundColor: '#ffffff',
+                scale: captureScale, useCORS: true, logging: true, backgroundColor: '#ffffff', // Enabled logging for html2canvas
                 width: timetableTableElement.offsetWidth, height: timetableTableElement.offsetHeight,
             });
+            console.log("PDF Gen: Timetable canvas created:", canvasTimetable.width, "x", canvasTimetable.height);
             if (tableWrapper) tableWrapper.style.overflowX = originalOverflow;
 
+            console.log("PDF Gen: Capturing notes...");
             const canvasNotes = await html2canvas(notesElement, {
-                scale: captureScale, useCORS: true, logging: false, backgroundColor: null,
+                scale: captureScale, useCORS: true, logging: true, backgroundColor: '#ffffff', // Changed to white, enabled logging
                 width: notesElement.scrollWidth, height: notesElement.scrollHeight,
             });
+            console.log("PDF Gen: Notes canvas created:", canvasNotes.width, "x", canvasNotes.height);
 
             const combinedCanvas = document.createElement('canvas');
             const ctx = combinedCanvas.getContext('2d');
