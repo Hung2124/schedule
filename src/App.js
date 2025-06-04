@@ -1254,7 +1254,8 @@ const PdfDownloadButton = () => {
                 originalOverflow = tableWrapper.style.overflowX;
                 tableWrapper.style.overflowX = 'visible';
             }
-            await new Promise(resolve => setTimeout(resolve, 200)); // Allow UI to update if overflow change affects layout
+            console.log("PDF Gen: Waiting 1 second for content to render...");
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Increased delay to 1 second
 
             const captureScale = 1.5; 
 
