@@ -9,6 +9,7 @@ import {
     signInWithCustomToken
 } from 'firebase/auth'; 
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import html2canvas from 'html2canvas';
 
 // --- Firebase Configuration ---
 const firebaseConfig = {
@@ -1170,175 +1171,145 @@ const SettingsModal = ({ onClose }) => {
 };
 
 const ToolsSection = () => {
-    const { schedule } = useSchedule();
-    const { settings } = useSettings();
     const [notificationMessage, setNotificationMessage] = useState("");
-    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+    const [downloadMessage, setDownloadMessage] = useState("");
+    const { schedule } = useSchedule();
 
-    const handleDownloadPdf = async () => {
-        if (typeof window.html2pdf === 'undefined') {
-            console.error("html2pdf.js is not loaded.");
-            setNotificationMessage("Lỗi: Thư viện tạo PDF chưa tải xong. Vui lòng thử lại sau giây lát.");
-            return;
-        }
-
-        const tableElement = document.getElementById('actualTableToCapture');
-        if (!tableElement) {
-            console.error("Element with ID 'actualTableToCapture' not found.");
-            setNotificationMessage("Lỗi: Không tìm thấy bảng lịch để xuất PDF.");
-            return;
-        }
+    // Phương pháp đơn giản sử dụng html2canvas để xuất lịch
+    const downloadSchedule = async () => {
+        setDownloadMessage("Đang chuẩn bị tải xuống lịch học...");
         
-        setIsGeneratingPdf(true);
-        setNotificationMessage("Đang tạo PDF, vui lòng đợi...");
-
         try {
-            // Tạo container tạm thời để render PDF
-            const tempContainer = document.createElement('div');
-            tempContainer.style.position = 'absolute';
-            tempContainer.style.left = '-9999px';
-            tempContainer.style.top = '-9999px';
-            document.body.appendChild(tempContainer);
+            // Lấy phần tử bảng lịch
+            const timetableElement = document.getElementById("actualTableToCapture");
             
-            // Clone table để sửa các thuộc tính
-            const clonedTable = tableElement.cloneNode(true);
+            if (!timetableElement) {
+                setDownloadMessage("Không tìm thấy bảng lịch để tải xuống.");
+                return;
+            }
             
-            // Tạo tiêu đề cho PDF
-            const headerDiv = document.createElement('div');
-            headerDiv.style.textAlign = 'center';
-            headerDiv.style.margin = '10px 0 20px 0';
-            headerDiv.style.fontFamily = 'Arial, sans-serif';
+            // Ẩn thanh cuộn trước khi chụp
+            document.documentElement.classList.add("hide-scrollbar");
             
-            const titleElement = document.createElement('h2');
-            titleElement.textContent = schedule.name || "Lịch học của tôi";
-            titleElement.style.fontSize = '24px';
-            titleElement.style.fontWeight = 'bold';
-            titleElement.style.marginBottom = '5px';
-            titleElement.style.color = settings.darkMode ? '#e2e8f0' : '#1e293b';
+            // Chuẩn bị bảng để chụp hình
+            const tableClone = timetableElement.cloneNode(true);
             
-            headerDiv.appendChild(titleElement);
+            // Đặt bảng vào DOM nhưng ẩn đi
+            tableClone.style.position = "absolute";
+            tableClone.style.left = "-9999px";
+            tableClone.style.top = "0";
+            tableClone.style.width = `${timetableElement.offsetWidth}px`;
+            document.body.appendChild(tableClone);
             
-            // Tạo container chứa nội dung PDF
-            const pdfContainer = document.createElement('div');
-            pdfContainer.style.padding = '0';
-            pdfContainer.style.background = settings.darkMode ? '#1e293b' : '#ffffff';
-            pdfContainer.style.color = settings.darkMode ? '#e2e8f0' : '#1e293b';
-            
-            // Đảm bảo Font Awesome được nhúng vào PDF
-            const faStyle = document.createElement('style');
-            faStyle.textContent = `
-                @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css');
-                
-                table {
-                    border-collapse: collapse;
-                    width: 100%;
-                    margin: 0;
-                }
-                
-                th {
-                    background-color: ${settings.darkMode ? '#334155' : '#4f46e5'};
-                    color: white;
-                    padding: 8px;
-                    text-align: center;
-                    border: 1px solid ${settings.darkMode ? '#475569' : '#4338ca'};
-                }
-                
-                td {
-                    padding: 8px;
-                    text-align: center;
-                    border: 1px solid ${settings.darkMode ? '#475569' : '#e2e8f0'};
-                }
-                
-                .time-slot {
-                    font-weight: bold;
-                }
-                
-                i.fas, i.fa, i.fab {
-                    display: inline-block;
-                    font-style: normal;
-                    font-variant: normal;
-                    text-rendering: auto;
-                    line-height: 1;
-                }
-            `;
-            
-            pdfContainer.appendChild(faStyle);
-            pdfContainer.appendChild(headerDiv);
-            pdfContainer.appendChild(clonedTable);
-            tempContainer.appendChild(pdfContainer);
-            
-            // Xử lý màu nền và các thuộc tính hiển thị của các ô
-            const cells = clonedTable.querySelectorAll('.activity-cell');
-            cells.forEach(cell => {
-                // Giữ nguyên classes liên quan đến màu sắc
-                const classesToKeep = Array.from(cell.classList).filter(cls => 
-                    cls.startsWith('bg-') || 
-                    cls.startsWith('text-') || 
-                    cls.startsWith('border-')
-                );
-                
-                // Thêm style trực tiếp để đảm bảo hiển thị đúng trong PDF
-                if (cell.querySelector('.activity-content')) {
-                    const content = cell.querySelector('.activity-content');
-                    content.style.display = 'flex';
-                    content.style.flexDirection = 'column';
-                    content.style.alignItems = 'center';
-                    content.style.justifyContent = 'center';
-                    content.style.height = '100%';
-                    content.style.padding = '8px';
-                }
-                
-                // Ẩn các nút action (hoàn thành, chỉnh sửa) trong PDF
-                const actionButtons = cell.querySelectorAll('button');
-                actionButtons.forEach(btn => btn.style.display = 'none');
+            // Đảm bảo tất cả các ô có đúng màu sắc
+            Array.from(tableClone.querySelectorAll('td, th')).forEach(cell => {
+                const computedStyle = window.getComputedStyle(cell);
+                cell.style.backgroundColor = computedStyle.backgroundColor;
+                cell.style.color = computedStyle.color;
+                cell.style.borderColor = computedStyle.borderColor;
             });
             
-            // Cấu hình PDF
-            const scheduleName = schedule.name || "ThoiKhoaBieu";
-            const filename = `${scheduleName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`;
+            // Cho một khoảng thời gian ngắn để đảm bảo render đầy đủ
+            await new Promise(resolve => setTimeout(resolve, 500));
             
-            const opt = {
-                margin: [10, 10, 10, 10], // top, left, bottom, right
-                filename: filename,
-                image: { type: 'jpeg', quality: 1.0 },
-                html2canvas: { 
-                    scale: 2,
-                    useCORS: true,
-                    letterRendering: true,
-                    allowTaint: true,
-                    backgroundColor: settings.darkMode ? '#1e293b' : '#ffffff',
-                    windowWidth: pdfContainer.scrollWidth,
-                    width: pdfContainer.scrollWidth,
-                    height: pdfContainer.scrollHeight,
-                    removeContainer: true
-                },
-                jsPDF: { 
-                    unit: 'mm', 
-                    format: 'a4', 
-                    orientation: 'landscape',
-                    compress: true
-                },
-                fontFaces: [
-                    {
-                        family: 'FontAwesome',
-                        style: 'normal',
-                        weight: 'normal',
-                        src: [{ url: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/webfonts/fa-solid-900.woff2', format: 'woff2' }]
+            // Sử dụng html2canvas với các tùy chọn tối ưu
+            const canvas = await html2canvas(tableClone, {
+                scale: 2, // Tăng độ phân giải
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: "#ffffff", // Sử dụng màu nền trắng để đảm bảo hiển thị đúng
+                logging: false,
+                onclone: function(clonedDoc) {
+                    const clonedElement = clonedDoc.querySelector("[id='actualTableToCapture']");
+                    if (clonedElement) {
+                        // Đảm bảo lại một lần nữa các mã màu được thiết lập đúng cách
+                        Array.from(clonedElement.querySelectorAll('td, th')).forEach(cell => {
+                            const computedStyle = window.getComputedStyle(cell);
+                            cell.style.backgroundColor = computedStyle.backgroundColor;
+                            cell.style.color = computedStyle.color;
+                            cell.style.borderColor = computedStyle.borderColor;
+                        });
                     }
-                ]
-            };
-
-            await window.html2pdf().from(pdfContainer).set(opt).save();
-            setNotificationMessage(`Đã tải xuống ${filename} thành công!`);
+                }
+            });
             
-            // Dọn dẹp sau khi tạo PDF
-            document.body.removeChild(tempContainer);
+            // Xóa bảng tạm thời
+            document.body.removeChild(tableClone);
             
+            // Tạo file image từ canvas
+            const imageURL = canvas.toDataURL("image/png");
+            
+            // Tạo link tải xuống
+            const downloadLink = document.createElement("a");
+            downloadLink.href = imageURL;
+            downloadLink.download = `${schedule.name || "lich-hoc-cua-toi"}.png`;
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+            
+            setDownloadMessage("Tải xuống lịch thành công!");
         } catch (error) {
-            console.error("Error generating PDF:", error);
-            setNotificationMessage("Lỗi khi tạo PDF: " + error.message);
+            console.error("Lỗi khi tải xuống lịch:", error);
+            setDownloadMessage(`Lỗi khi tải xuống: ${error.message}`);
+            
+            // Thử lại với phương pháp đơn giản hơn
+            tryAlternativeDownload();
         } finally {
-            setIsGeneratingPdf(false);
+            // Khôi phục thanh cuộn
+            document.documentElement.classList.remove("hide-scrollbar");
+        }
+    };
+    
+    // Phương pháp thay thế đơn giản hơn trong trường hợp lỗi 
+    const tryAlternativeDownload = async () => {
+        try {
+            setDownloadMessage("Đang thử phương pháp thay thế...");
+            
+            // Lấy phần tử bảng lịch
+            const timetableElement = document.getElementById("actualTableToCapture");
+            
+            if (!timetableElement) {
+                return;
+            }
+            
+            // Đảm bảo tất cả các ô có đúng màu sắc
+            const tableClone = timetableElement.cloneNode(true);
+            Array.from(tableClone.querySelectorAll('td, th')).forEach(cell => {
+                const computedStyle = window.getComputedStyle(cell);
+                cell.style.backgroundColor = computedStyle.backgroundColor;
+                cell.style.color = computedStyle.color;
+                cell.style.borderColor = computedStyle.borderColor;
+            });
+            
+            // Đặt bảng vào DOM nhưng ẩn đi
+            tableClone.style.position = "absolute";
+            tableClone.style.left = "-9999px";
+            tableClone.style.top = "0";
+            document.body.appendChild(tableClone);
+            
+            // Sử dụng html2canvas với tùy chọn tối thiểu
+            const canvas = await html2canvas(tableClone, {
+                backgroundColor: "#ffffff", // Sử dụng màu nền trắng để đảm bảo hiển thị đúng
+                scale: 2,
+                useCORS: true
+            });
+            
+            // Xóa bảng tạm thời
+            document.body.removeChild(tableClone);
+            
+            // Tải xuống canvas dưới dạng PNG
+            const imageURL = canvas.toDataURL("image/png");
+            const downloadLink = document.createElement("a");
+            downloadLink.href = imageURL;
+            downloadLink.download = `${schedule.name || "lich-hoc-cua-toi"}.png`;
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+            
+            setDownloadMessage("Tải xuống lịch thành công (phương pháp thay thế)!");
+        } catch (error) {
+            console.error("Lỗi khi tải xuống lịch (phương pháp thay thế):", error);
+            setDownloadMessage("Không thể tải xuống lịch. Vui lòng thử lại sau.");
         }
     };
 
@@ -1378,22 +1349,26 @@ const ToolsSection = () => {
     return (
         <div className="my-6 p-4 bg-white dark:bg-slate-800 rounded-lg shadow-md">
             <h3 className="text-lg font-semibold mb-3 text-indigo-700 dark:text-indigo-300">Công cụ & Tiện ích</h3>
-            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
+            <div className="flex flex-wrap justify-center gap-2 mb-2">
                 <button 
                     onClick={requestNotificationPermission}
-                    className="flex-1 bg-purple-500 hover:bg-purple-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
+                    className="bg-purple-500 hover:bg-purple-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
                 >
                     <i className="fas fa-bell mr-2"></i>Bật Thông Báo
                 </button>
-                <button
-                    onClick={handleDownloadPdf}
-                    disabled={isGeneratingPdf}
-                    className="flex-1 bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-md transition-colors disabled:opacity-50"
+            </div>
+            
+            <h4 className="text-md font-medium mb-2 text-center text-gray-700 dark:text-gray-300">Tải xuống lịch</h4>
+            <div className="flex flex-wrap justify-center gap-2">
+                <button 
+                    onClick={downloadSchedule}
+                    className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
                 >
-                    {isGeneratingPdf ? <><i className="fas fa-spinner fa-spin mr-2"></i>Đang tạo...</> : <><i className="fas fa-file-pdf mr-2"></i>Tải xuống PDF</>}
+                    <i className="fas fa-download mr-2"></i>Tải Xuống Lịch
                 </button>
             </div>
             {notificationMessage && <p className="text-sm mt-3 text-center text-gray-600 dark:text-gray-400">{notificationMessage}</p>}
+            {downloadMessage && <p className="text-sm mt-3 text-center text-gray-600 dark:text-gray-400">{downloadMessage}</p>}
         </div>
     );
 };
@@ -1463,9 +1438,6 @@ function App() {
         document.head.appendChild(fontAwesomeLink);
 
         const libraries = [
-            { id: 'domtoimage-lib', src: 'https://cdnjs.cloudflare.com/ajax/libs/dom-to-image-more/2.9.5/dom-to-image-more.min.js' },
-            { id: 'jspdf-lib', src: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js' },
-            { id: 'html2pdf-lib', src: 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js' },
             { id: 'tonejs-lib', src: 'https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js' }
         ];
 
