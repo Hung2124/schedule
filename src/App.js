@@ -1217,7 +1217,7 @@ const PdfDownloadButton = () => {
             return;
         }
         
-        const domtoimage = window.domtoimage; // Use domtoimage
+        const domtoimage = window.domtoimage; 
         const jsPDF = window.jspdf?.jsPDF;
 
         if (!domtoimage || !jsPDF) {
@@ -1249,14 +1249,36 @@ const PdfDownloadButton = () => {
         console.log("PDF Gen: Notes Element Dims:", notesElement.scrollWidth, "x", notesElement.scrollHeight);
 
         let originalOverflow;
+        let faStyleElement = null;
         try {
             if (tableWrapper) {
                 originalOverflow = tableWrapper.style.overflowX;
-                tableWrapper.style.overflowX = 'visible'; // Make sure full width is capturable
+                tableWrapper.style.overflowX = 'visible'; 
             }
-            await new Promise(resolve => setTimeout(resolve, 1000)); // Allow UI to update
+            
+            // --- START: Inline Font Awesome CSS ---
+            try {
+                const faCssUrl = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css';
+                console.log("PDF Gen: Fetching Font Awesome CSS from:", faCssUrl);
+                const response = await fetch(faCssUrl);
+                if (response.ok) {
+                    const cssText = await response.text();
+                    faStyleElement = document.createElement('style');
+                    faStyleElement.type = 'text/css';
+                    faStyleElement.appendChild(document.createTextNode(cssText));
+                    document.head.appendChild(faStyleElement);
+                    console.log("PDF Gen: Font Awesome CSS inlined.");
+                } else {
+                    console.warn("PDF Gen: Failed to fetch Font Awesome CSS. Status:", response.status);
+                }
+            } catch (e) {
+                console.error("PDF Gen: Error fetching or inlining Font Awesome CSS:", e);
+            }
+            // --- END: Inline Font Awesome CSS ---
 
-            const scaleFactor = 1.5; // Keep scale for potentially better resolution
+            await new Promise(resolve => setTimeout(resolve, 1000)); 
+
+            const scaleFactor = 1.5; 
 
             const domToImageOptions = {
                 width: timetableTableElement.offsetWidth * scaleFactor,
@@ -1264,17 +1286,16 @@ const PdfDownloadButton = () => {
                 style: {
                     transform: `scale(${scaleFactor})`,
                     transformOrigin: 'top left',
-                    // Ensure no external styles interfere if dom-to-image clones to body
                 },
-                quality: 1.0, // For PNG, this might not be as relevant as for JPEG
-                bgcolor: '#ffffff' // Explicit white background
+                quality: 1.0, 
+                bgcolor: '#ffffff' 
             };
             
             console.log("PDF Gen: Capturing timetable with dom-to-image...");
             const timetableDataUrl = await domtoimage.toPng(timetableTableElement, domToImageOptions);
             console.log("PDF Gen: Timetable dataURL created with dom-to-image (first 100):", timetableDataUrl.substring(0,100));
 
-            if (tableWrapper) tableWrapper.style.overflowX = originalOverflow; // Restore overflow
+            if (tableWrapper) tableWrapper.style.overflowX = originalOverflow; 
 
             const notesDomToImageOptions = {
                 width: notesElement.scrollWidth * scaleFactor,
@@ -1290,7 +1311,6 @@ const PdfDownloadButton = () => {
             const notesDataUrl = await domtoimage.toPng(notesElement, notesDomToImageOptions);
             console.log("PDF Gen: Notes dataURL created with dom-to-image (first 100):", notesDataUrl.substring(0,100));
             
-            // Create a combined image on a new canvas
             const combinedCanvas = document.createElement('canvas');
             const ctx = combinedCanvas.getContext('2d');
             const spacingBetweenElementsPx = Math.round(20 * scaleFactor);
@@ -1342,14 +1362,28 @@ const PdfDownloadButton = () => {
                     setMessage("Lỗi: Canvas kết hợp rỗng.");
                 }
                 setIsGenerating(false);
+                if (faStyleElement && faStyleElement.parentNode) {
+                    document.head.removeChild(faStyleElement);
+                    console.log("PDF Gen: Font Awesome CSS un-inlined after PDF creation.");
+                }
             };
             
             imgTimetable.onload = () => { timetableLoaded = true; attemptPdfCreation(); };
-            imgTimetable.onerror = () => { console.error("Error loading timetable image dataURL"); setMessage("Lỗi tải ảnh lịch trình."); setIsGenerating(false);};
+            imgTimetable.onerror = () => { 
+                console.error("Error loading timetable image dataURL"); 
+                setMessage("Lỗi tải ảnh lịch trình."); 
+                setIsGenerating(false); 
+                if (faStyleElement && faStyleElement.parentNode) document.head.removeChild(faStyleElement);
+            };
             imgTimetable.src = timetableDataUrl;
 
             imgNotes.onload = () => { notesLoaded = true; attemptPdfCreation(); };
-            imgNotes.onerror = () => { console.error("Error loading notes image dataURL"); setMessage("Lỗi tải ảnh ghi chú."); setIsGenerating(false);};
+            imgNotes.onerror = () => { 
+                console.error("Error loading notes image dataURL"); 
+                setMessage("Lỗi tải ảnh ghi chú."); 
+                setIsGenerating(false);
+                if (faStyleElement && faStyleElement.parentNode) document.head.removeChild(faStyleElement);
+            };
             imgNotes.src = notesDataUrl;
 
         } catch (err) {
@@ -1357,6 +1391,10 @@ const PdfDownloadButton = () => {
             setMessage("Đã có lỗi xảy ra khi tạo file PDF: " + err.message);
             if (tableWrapper && originalOverflow !== undefined) tableWrapper.style.overflowX = originalOverflow;
             setIsGenerating(false);
+            if (faStyleElement && faStyleElement.parentNode) { 
+                document.head.removeChild(faStyleElement);
+                console.log("PDF Gen: Font Awesome CSS un-inlined after error in main try-catch.");
+            }
         }
     };
 
