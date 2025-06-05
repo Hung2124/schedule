@@ -1315,9 +1315,24 @@ const PdfDownloadButton = () => {
                 const notesClone = notesElement.cloneNode(true);
                 
                 // Đảm bảo các phần tử clone có đủ chiều rộng
-                timetableClone.style.width = `${timetableTableElement.scrollWidth}px`;
+                const minWidth = Math.max(1200, timetableTableElement.scrollWidth); // Đảm bảo tối thiểu 1200px chiều rộng
+                timetableClone.style.width = `${minWidth}px`;
+                timetableClone.style.minWidth = `${minWidth}px`;
                 timetableClone.style.maxWidth = 'none';
-                notesClone.style.width = `${notesElement.scrollWidth}px`;
+                
+                // Đảm bảo bảng có đủ không gian để hiển thị
+                const tableRows = timetableClone.querySelectorAll('tr');
+                tableRows.forEach(row => {
+                    const cells = row.querySelectorAll('th, td');
+                    cells.forEach(cell => {
+                        // Đảm bảo mỗi ô có chiều rộng tối thiểu
+                        cell.style.minWidth = cell === cells[0] ? '100px' : `${(minWidth - 100) / (cells.length - 1)}px`;
+                        cell.style.width = cell === cells[0] ? '100px' : `${(minWidth - 100) / (cells.length - 1)}px`;
+                    });
+                });
+                
+                notesClone.style.width = `${minWidth}px`;
+                notesClone.style.minWidth = `${minWidth}px`;
                 notesClone.style.maxWidth = 'none';
                 notesClone.style.marginTop = '30px';
                 
@@ -1327,19 +1342,20 @@ const PdfDownloadButton = () => {
                 document.body.appendChild(tempContainer);
                 
                 // Đảm bảo container có đủ chiều rộng
-                const containerWidth = Math.max(timetableClone.offsetWidth, notesClone.offsetWidth);
-                tempContainer.style.width = `${containerWidth}px`;
+                tempContainer.style.width = `${minWidth}px`;
+                tempContainer.style.minWidth = `${minWidth}px`;
                 
                 console.log("PDF Gen: Temporary container created with dimensions:", 
                             tempContainer.offsetWidth, "x", tempContainer.offsetHeight);
                 
                 // Đợi để đảm bảo container được render đầy đủ
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 
                 // Cấu hình cho dom-to-image
+                const scaleFactor = 2.0; 
                 const domToImageOptions = {
-                    width: tempContainer.scrollWidth,
-                    height: tempContainer.scrollHeight,
+                    width: minWidth * scaleFactor,
+                    height: tempContainer.scrollHeight * scaleFactor,
                     style: {
                         transform: `scale(${scaleFactor})`,
                         transformOrigin: 'top left',
@@ -1365,7 +1381,7 @@ const PdfDownloadButton = () => {
                         const pdfPageHeightPt = imgHeightPx * pxToPtScaleFactor;
                         
                         const pdf = new jsPDF({
-                            orientation: pdfPageWidthPt > pdfPageHeightPt ? 'l' : 'p',
+                            orientation: 'landscape', // Luôn dùng landscape cho lịch trình
                             unit: 'pt',
                             format: [pdfPageWidthPt, pdfPageHeightPt]
                         });
@@ -1517,19 +1533,36 @@ const PdfDownloadButton = () => {
                         tempContainer.style.left = '-9999px';
                         tempContainer.style.backgroundColor = '#ffffff';
                         tempContainer.style.padding = '20px';
-                        tempContainer.style.width = 'auto';
-                        tempContainer.style.maxWidth = 'none';
                         
                         // Clone các phần tử để không ảnh hưởng đến giao diện
                         const timetableClone = timetableTableElement.cloneNode(true);
                         const notesClone = notesElement.cloneNode(true);
                         
                         // Đảm bảo các phần tử clone có đủ chiều rộng
-                        timetableClone.style.width = `${timetableTableElement.scrollWidth}px`;
+                        const minWidth = Math.max(1200, timetableTableElement.scrollWidth);
+                        timetableClone.style.width = `${minWidth}px`;
+                        timetableClone.style.minWidth = `${minWidth}px`;
                         timetableClone.style.maxWidth = 'none';
-                        notesClone.style.width = `${notesElement.scrollWidth}px`;
+                        
+                        // Đảm bảo bảng có đủ không gian để hiển thị
+                        const tableRows = timetableClone.querySelectorAll('tr');
+                        tableRows.forEach(row => {
+                            const cells = row.querySelectorAll('th, td');
+                            cells.forEach(cell => {
+                                // Đảm bảo mỗi ô có chiều rộng tối thiểu
+                                cell.style.minWidth = cell === cells[0] ? '100px' : `${(minWidth - 100) / (cells.length - 1)}px`;
+                                cell.style.width = cell === cells[0] ? '100px' : `${(minWidth - 100) / (cells.length - 1)}px`;
+                            });
+                        });
+                        
+                        notesClone.style.width = `${minWidth}px`;
+                        notesClone.style.minWidth = `${minWidth}px`;
                         notesClone.style.maxWidth = 'none';
                         notesClone.style.marginTop = '30px';
+                        
+                        // Thiết lập container
+                        tempContainer.style.width = `${minWidth}px`;
+                        tempContainer.style.minWidth = `${minWidth}px`;
                         
                         // Thêm vào container tạm thời
                         tempContainer.appendChild(timetableClone);
@@ -1537,7 +1570,7 @@ const PdfDownloadButton = () => {
                         document.body.appendChild(tempContainer);
                         
                         // Đợi để đảm bảo container được render đầy đủ
-                        await new Promise(resolve => setTimeout(resolve, 500));
+                        await new Promise(resolve => setTimeout(resolve, 1000));
                         
                         // Cấu hình cho html2pdf
                         const html2pdfOptions = {
@@ -1548,9 +1581,11 @@ const PdfDownloadButton = () => {
                                 scale: 2,
                                 useCORS: true,
                                 logging: false,
-                                letterRendering: true
+                                letterRendering: true,
+                                width: minWidth,
+                                height: tempContainer.scrollHeight
                             },
-                            jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+                            jsPDF: { unit: 'mm', format: [minWidth * 0.264583, tempContainer.scrollHeight * 0.264583], orientation: 'landscape' }
                         };
                         
                         // Sử dụng html2pdf để tạo PDF
