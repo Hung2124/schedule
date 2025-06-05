@@ -1170,8 +1170,8 @@ const SettingsModal = ({ onClose }) => {
 };
 
 const ToolsSection = () => {
-    // const { schedule } = useSchedule(); // Removed as generateICS is removed
-    const { schedule } = useSchedule(); // Added back for filename
+    const { schedule } = useSchedule();
+    const { settings } = useSettings();
     const [notificationMessage, setNotificationMessage] = useState("");
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
@@ -1182,56 +1182,163 @@ const ToolsSection = () => {
             return;
         }
 
-        const element = document.getElementById('timetableContentForPdf');
-        if (!element) {
-            console.error("Element with ID 'timetableContentForPdf' not found.");
+        const tableElement = document.getElementById('actualTableToCapture');
+        if (!tableElement) {
+            console.error("Element with ID 'actualTableToCapture' not found.");
             setNotificationMessage("Lỗi: Không tìm thấy bảng lịch để xuất PDF.");
             return;
         }
         
-        // Temporarily remove dark mode for PDF generation if active, to ensure consistent styling
-        const wasDarkMode = document.documentElement.classList.contains('dark');
-        if (wasDarkMode) {
-            document.documentElement.classList.remove('dark');
-            // Allow a brief moment for styles to re-render without dark mode
-            await new Promise(resolve => setTimeout(resolve, 100));
-        }
-
         setIsGeneratingPdf(true);
         setNotificationMessage("Đang tạo PDF, vui lòng đợi...");
 
-        const scheduleName = schedule.name || "ThoiKhoaBieu";
-        const filename = `${scheduleName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`;
-
-        const opt = {
-            margin: [0, 0, 0, 0], // No margins [top, left, bottom, right]
-            filename: filename,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { 
-                scale: 2, // Higher scale for better quality
-                useCORS: true,
-                logging: false,
-                // Ensure the entire width of the table is captured
-                width: element.scrollWidth, 
-                windowWidth: element.scrollWidth 
-            },
-            jsPDF: { unit: 'pt', format: 'a4', orientation: 'landscape' },
-            // Try to avoid page breaks within the table content as much as possible
-            pagebreak: { mode: ['avoid-all', 'css', 'legacy'], before: '#actualTableToCapture' } 
-        };
-
         try {
-            await window.html2pdf().from(element).set(opt).save();
+            // Tạo container tạm thời để render PDF
+            const tempContainer = document.createElement('div');
+            tempContainer.style.position = 'absolute';
+            tempContainer.style.left = '-9999px';
+            tempContainer.style.top = '-9999px';
+            document.body.appendChild(tempContainer);
+            
+            // Clone table để sửa các thuộc tính
+            const clonedTable = tableElement.cloneNode(true);
+            
+            // Tạo tiêu đề cho PDF
+            const headerDiv = document.createElement('div');
+            headerDiv.style.textAlign = 'center';
+            headerDiv.style.margin = '10px 0 20px 0';
+            headerDiv.style.fontFamily = 'Arial, sans-serif';
+            
+            const titleElement = document.createElement('h2');
+            titleElement.textContent = schedule.name || "Lịch học của tôi";
+            titleElement.style.fontSize = '24px';
+            titleElement.style.fontWeight = 'bold';
+            titleElement.style.marginBottom = '5px';
+            titleElement.style.color = settings.darkMode ? '#e2e8f0' : '#1e293b';
+            
+            headerDiv.appendChild(titleElement);
+            
+            // Tạo container chứa nội dung PDF
+            const pdfContainer = document.createElement('div');
+            pdfContainer.style.padding = '0';
+            pdfContainer.style.background = settings.darkMode ? '#1e293b' : '#ffffff';
+            pdfContainer.style.color = settings.darkMode ? '#e2e8f0' : '#1e293b';
+            
+            // Đảm bảo Font Awesome được nhúng vào PDF
+            const faStyle = document.createElement('style');
+            faStyle.textContent = `
+                @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css');
+                
+                table {
+                    border-collapse: collapse;
+                    width: 100%;
+                    margin: 0;
+                }
+                
+                th {
+                    background-color: ${settings.darkMode ? '#334155' : '#4f46e5'};
+                    color: white;
+                    padding: 8px;
+                    text-align: center;
+                    border: 1px solid ${settings.darkMode ? '#475569' : '#4338ca'};
+                }
+                
+                td {
+                    padding: 8px;
+                    text-align: center;
+                    border: 1px solid ${settings.darkMode ? '#475569' : '#e2e8f0'};
+                }
+                
+                .time-slot {
+                    font-weight: bold;
+                }
+                
+                i.fas, i.fa, i.fab {
+                    display: inline-block;
+                    font-style: normal;
+                    font-variant: normal;
+                    text-rendering: auto;
+                    line-height: 1;
+                }
+            `;
+            
+            pdfContainer.appendChild(faStyle);
+            pdfContainer.appendChild(headerDiv);
+            pdfContainer.appendChild(clonedTable);
+            tempContainer.appendChild(pdfContainer);
+            
+            // Xử lý màu nền và các thuộc tính hiển thị của các ô
+            const cells = clonedTable.querySelectorAll('.activity-cell');
+            cells.forEach(cell => {
+                // Giữ nguyên classes liên quan đến màu sắc
+                const classesToKeep = Array.from(cell.classList).filter(cls => 
+                    cls.startsWith('bg-') || 
+                    cls.startsWith('text-') || 
+                    cls.startsWith('border-')
+                );
+                
+                // Thêm style trực tiếp để đảm bảo hiển thị đúng trong PDF
+                if (cell.querySelector('.activity-content')) {
+                    const content = cell.querySelector('.activity-content');
+                    content.style.display = 'flex';
+                    content.style.flexDirection = 'column';
+                    content.style.alignItems = 'center';
+                    content.style.justifyContent = 'center';
+                    content.style.height = '100%';
+                    content.style.padding = '8px';
+                }
+                
+                // Ẩn các nút action (hoàn thành, chỉnh sửa) trong PDF
+                const actionButtons = cell.querySelectorAll('button');
+                actionButtons.forEach(btn => btn.style.display = 'none');
+            });
+            
+            // Cấu hình PDF
+            const scheduleName = schedule.name || "ThoiKhoaBieu";
+            const filename = `${scheduleName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`;
+            
+            const opt = {
+                margin: [10, 10, 10, 10], // top, left, bottom, right
+                filename: filename,
+                image: { type: 'jpeg', quality: 1.0 },
+                html2canvas: { 
+                    scale: 2,
+                    useCORS: true,
+                    letterRendering: true,
+                    allowTaint: true,
+                    backgroundColor: settings.darkMode ? '#1e293b' : '#ffffff',
+                    windowWidth: pdfContainer.scrollWidth,
+                    width: pdfContainer.scrollWidth,
+                    height: pdfContainer.scrollHeight,
+                    removeContainer: true
+                },
+                jsPDF: { 
+                    unit: 'mm', 
+                    format: 'a4', 
+                    orientation: 'landscape',
+                    compress: true
+                },
+                fontFaces: [
+                    {
+                        family: 'FontAwesome',
+                        style: 'normal',
+                        weight: 'normal',
+                        src: [{ url: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/webfonts/fa-solid-900.woff2', format: 'woff2' }]
+                    }
+                ]
+            };
+
+            await window.html2pdf().from(pdfContainer).set(opt).save();
             setNotificationMessage(`Đã tải xuống ${filename} thành công!`);
+            
+            // Dọn dẹp sau khi tạo PDF
+            document.body.removeChild(tempContainer);
+            
         } catch (error) {
             console.error("Error generating PDF:", error);
             setNotificationMessage("Lỗi khi tạo PDF: " + error.message);
         } finally {
             setIsGeneratingPdf(false);
-            // Restore dark mode if it was active
-            if (wasDarkMode) {
-                document.documentElement.classList.add('dark');
-            }
         }
     };
 
@@ -1267,8 +1374,6 @@ const ToolsSection = () => {
             setNotificationMessage("Bạn đã từ chối quyền thông báo. Vui lòng thay đổi trong cài đặt trình duyệt.");
         }
     };
-
-    // generateICS function removed
 
     return (
         <div className="my-6 p-4 bg-white dark:bg-slate-800 rounded-lg shadow-md">
