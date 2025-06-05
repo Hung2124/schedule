@@ -1186,29 +1186,25 @@ const PdfDownloadButton = () => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [message, setMessage] = useState("");
     const [libsLoaded, setLibsLoaded] = useState(false);
-    const tempContainerRef = useRef(null); // Ref to manage the temporary container
+    const tempContainerRef = useRef(null); 
 
     useEffect(() => {
-        // Check if libraries are loaded
-        if (window.domtoimage && window.jspdf && window.html2pdf) {
-            setLibsLoaded(true);
-        } else {
-            // Poll for libraries if not immediately available
-            let attempts = 0;
-            const interval = setInterval(() => {
+        let attempts = 0;
+        const interval = setInterval(() => {
+            if (window.domtoimage && window.jspdf && window.html2pdf) {
+                setLibsLoaded(true);
+                clearInterval(interval);
+                console.log("PDF libraries loaded.");
+            } else {
                 attempts++;
-                if (window.domtoimage && window.jspdf && window.html2pdf) {
-                    setLibsLoaded(true);
-                    clearInterval(interval);
-                    console.log("PDF libraries (domtoimage, jspdf, html2pdf) loaded after polling.");
-                } else if (attempts > 20) { // Stop after 10 seconds (20 * 500ms)
+                if (attempts > 20) {
                     clearInterval(interval);
                     console.warn("PDF libraries did not load after 10 seconds.");
                     setMessage("Lỗi: Không thể tải thư viện PDF. Vui lòng thử làm mới trang.");
                 }
-            }, 500);
-            return () => clearInterval(interval);
-        }
+            }
+        }, 500);
+        return () => clearInterval(interval);
     }, []);
 
     const cleanupTempContainer = () => {
@@ -1221,8 +1217,7 @@ const PdfDownloadButton = () => {
 
     const handleDownloadPdf = async () => {
         if (!libsLoaded) {
-            setMessage("Lỗi: Thư viện PDF chưa sẵn sàng. Vui lòng chờ hoặc làm mới trang.");
-            console.error("PDF libraries not loaded yet for download attempt.");
+            setMessage("Lỗi: Thư viện PDF chưa sẵn sàng.");
             return;
         }
         
@@ -1230,8 +1225,7 @@ const PdfDownloadButton = () => {
         const jsPDF = window.jspdf?.jsPDF;
 
         if (!domtoimage || !jsPDF || !window.html2pdf) {
-            setMessage("Lỗi nghiêm trọng: Một số thư viện PDF không khả dụng.");
-            console.error("Critical: domtoimage, jspdf or html2pdf became unavailable.");
+            setMessage("Lỗi nghiêm trọng: Thư viện PDF không khả dụng.");
             return;
         }
 
@@ -1241,23 +1235,12 @@ const PdfDownloadButton = () => {
         const notesElement = document.getElementById('notesContentForPdf');
         const tableWrapper = document.getElementById('tableWrapper');
 
-        if (!timetableTableElement) {
-            console.error("PDF Gen: timetableTableElement not found");
-            setMessage("Lỗi: Không tìm thấy bảng thời khóa biểu để tạo PDF.");
-            setIsGenerating(false);
-            return;
-        }
-        if (!notesElement) {
-            console.error("PDF Gen: notesElement not found");
-            setMessage("Lỗi: Không tìm thấy phần ghi chú để tạo PDF.");
+        if (!timetableTableElement || !notesElement) {
+            setMessage("Lỗi: Không tìm thấy phần tử cần thiết để tạo PDF.");
             setIsGenerating(false);
             return;
         }
         
-        console.log("PDF Gen: Timetable Element Dims (offset):", timetableTableElement.offsetWidth, "x", timetableTableElement.offsetHeight);
-        console.log("PDF Gen: Timetable Element Dims (scroll):", timetableTableElement.scrollWidth, "x", timetableTableElement.scrollHeight);
-        console.log("PDF Gen: Notes Element Dims (scroll):", notesElement.scrollWidth, "x", notesElement.scrollHeight);
-
         let originalOverflowX, originalOverflowY;
         let faStyleElement = null;
         
@@ -1275,62 +1258,54 @@ const PdfDownloadButton = () => {
             
             try {
                 const faCssUrl = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css';
-                console.log("PDF Gen: Fetching Font Awesome CSS from:", faCssUrl);
                 const response = await fetch(faCssUrl);
                 if (response.ok) {
                     let cssText = await response.text();
                     cssText = cssText.replace(/url\(\s*['"]?(\.\.\/webfonts\/.*?)['"]?\s*\)/g, (match, relativeUrlPath) => {
-                        try {
-                            const absoluteUrl = new URL(relativeUrlPath, faCssUrl).href;
-                            return `url('${absoluteUrl}')`;
-                        } catch (e) { return match; }
+                        try { return `url('${new URL(relativeUrlPath, faCssUrl).href}')`; } catch (e) { return match; }
                     });
                     faStyleElement = document.createElement('style');
                     faStyleElement.type = 'text/css';
                     faStyleElement.appendChild(document.createTextNode(cssText));
                     document.head.appendChild(faStyleElement);
-                    console.log("PDF Gen: Font Awesome CSS inlined.");
-                } else {
-                    console.warn("PDF Gen: Failed to fetch Font Awesome CSS. Status:", response.status);
                 }
-            } catch (e) {
-                console.error("PDF Gen: Error fetching/inlining Font Awesome CSS:", e);
-            }
+            } catch (e) { console.error("PDF Gen: Error inlining Font Awesome CSS:", e); }
 
-            await new Promise(resolve => setTimeout(resolve, 500)); // Increased delay for FA and initial render
+            await new Promise(resolve => setTimeout(resolve, 100)); // Brief delay for FA CSS to apply
 
-            // --- PHƯƠNG PHÁP 1: Sử dụng html2pdf.js (PRIORITIZED) ---
+            // --- PHƯƠNG PHÁP 1: html2pdf.js (PRIORITIZED) ---
             try {
-                console.log("PDF Gen: Attempting with html2pdf.js first...");
+                console.log("PDF Gen: Attempting with html2pdf.js...");
                 
                 tempContainer.style.position = 'absolute';
-                tempContainer.style.left = '-9999px'; // Keep off-screen
+                tempContainer.style.left = '-9999px';
                 tempContainer.style.backgroundColor = '#ffffff';
-                tempContainer.style.width = 'auto'; // Let content define initial width
+                tempContainer.style.width = 'auto'; 
                 tempContainer.style.maxWidth = 'none';
-                
+                tempContainer.style.overflow = 'visible'; // Ensure container itself doesn't clip
+
                 const timetableClone = timetableTableElement.cloneNode(true);
                 const notesClone = notesElement.cloneNode(true);
                 
                 const minWidth = Math.max(1200, timetableTableElement.scrollWidth); 
                 timetableClone.style.width = `${minWidth}px`;
                 notesClone.style.width = `${minWidth}px`;
-                notesClone.style.marginTop = '30px'; // Spacing between table and notes
+                notesClone.style.marginTop = '30px'; 
                 
                 tempContainer.appendChild(timetableClone);
                 tempContainer.appendChild(notesClone);
                 document.body.appendChild(tempContainer);
 
-                // Allow browser to calculate dimensions of the assembled tempContainer
-                await new Promise(resolve => setTimeout(resolve, 300)); // Short delay for layout
-                const containerActualWidthHtml2Pdf = tempContainer.scrollWidth;
-                const containerActualHeightHtml2Pdf = tempContainer.scrollHeight;
-                tempContainer.style.width = `${containerActualWidthHtml2Pdf}px`; // Fix width for capture
-
-                console.log("PDF Gen (html2pdf): Temp container for capture - Width:", containerActualWidthHtml2Pdf, "Height:", containerActualHeightHtml2Pdf);
+                await new Promise(resolve => setTimeout(resolve, 250)); // Delay for initial layout of tempContainer
                 
-                // Additional delay to ensure rendering is complete before capture
-                await new Promise(resolve => setTimeout(resolve, 1200)); // Longer delay before capture
+                const containerActualWidth = tempContainer.scrollWidth;
+                const containerActualHeight = tempContainer.scrollHeight;
+                tempContainer.style.width = `${containerActualWidth}px`; 
+                // tempContainer.style.height = `${containerActualHeight}px`; // Let height be natural
+
+                console.log("PDF Gen (html2pdf): Temp container sized to - W:", containerActualWidth, "H:", containerActualHeight);
+                
+                await new Promise(resolve => setTimeout(resolve, 1500)); // Longer delay for full rendering before capture
                 
                 const html2canvasScale = 2;
                 const html2pdfOptions = {
@@ -1340,99 +1315,67 @@ const PdfDownloadButton = () => {
                     html2canvas: { 
                         scale: html2canvasScale,
                         useCORS: true,
-                        logging: false, 
+                        logging: true, // Enable for more detailed logs from html2canvas
                         letterRendering: true,
-                        // width and height removed to let html2pdf determine from element
+                        width: containerActualWidth, // Explicitly pass width
+                        height: containerActualHeight, // Explicitly pass height
+                        windowWidth: containerActualWidth, // Hint for viewport
+                        windowHeight: containerActualHeight, // Hint for viewport
                         backgroundColor: '#ffffff' 
                     },
                     jsPDF: { 
                         unit: 'px', 
-                        // Format will be derived from the canvas size by html2pdf
-                        orientation: (containerActualWidthHtml2Pdf > containerActualHeightHtml2Pdf ? 'l' : 'p')
+                        format: [containerActualWidth * html2canvasScale, containerActualHeight * html2canvasScale], 
+                        orientation: (containerActualWidth > containerActualHeight ? 'l' : 'p')
                     }
                 };
                 
                 await window.html2pdf().from(tempContainer).set(html2pdfOptions).save();
-                console.log("PDF Gen: PDF created with html2pdf successfully");
-                setMessage("Đã tạo PDF thành công (phương pháp html2pdf)!");
+                setMessage("Đã tạo PDF thành công (html2pdf)!");
                 
             } catch (html2pdfErr) {
-                console.error("PDF Gen: html2pdf.js method failed:", html2pdfErr);
+                console.error("PDF Gen: html2pdf.js failed:", html2pdfErr);
                 setMessage("Lỗi html2pdf: " + html2pdfErr.message + ". Thử dự phòng...");
                 
                 // --- PHƯƠNG PHÁP 2: Fallback to DOM-to-Image + jsPDF ---
-                if (!tempContainerRef.current || !tempContainerRef.current.parentNode) {
-                    // This block might be redundant if tempContainer was already set up and not cleaned by html2pdf's error
-                    cleanupTempContainer(); 
-                    tempContainerRef.current = document.createElement('div');
-                    const newTempContainer = tempContainerRef.current;
-                    newTempContainer.style.position = 'absolute';
-                    newTempContainer.style.left = '-9999px';
-                    newTempContainer.style.backgroundColor = '#ffffff';
-                    newTempContainer.style.width = 'auto';
-                    newTempContainer.style.maxWidth = 'none';
-
-                    const timetableCloneFb = timetableTableElement.cloneNode(true);
-                    const notesCloneFb = notesElement.cloneNode(true);
-                    const minWidthFb = Math.max(1200, timetableTableElement.scrollWidth);
-                    
-                    timetableCloneFb.style.width = `${minWidthFb}px`;
-                    notesCloneFb.style.width = `${minWidthFb}px`;
-                    notesCloneFb.style.marginTop = '30px';
-
-                    newTempContainer.appendChild(timetableCloneFb);
-                    newTempContainer.appendChild(notesCloneFb);
-                    document.body.appendChild(newTempContainer);
-                    
-                    await new Promise(resolve => setTimeout(resolve, 200));
-                    const containerActualWidthFb = newTempContainer.scrollWidth;
-                    newTempContainer.style.width = `${containerActualWidthFb}px`;
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                const currentTempContainerForFallback = tempContainerRef.current; // Use the already setup container
+                if (!currentTempContainerForFallback || !currentTempContainerForFallback.parentNode) {
+                     // Should not happen if html2pdf error didn't remove it, but as a safeguard:
+                    console.error("PDF Gen: Fallback - tempContainer missing.");
+                    throw new Error("Fallback tempContainer missing");
                 }
-                const currentTempContainer = tempContainerRef.current;
 
                 const scaleFactorFallback = 2.0;
                 const domToImageOptions = {
-                    width: currentTempContainer.scrollWidth * scaleFactorFallback,
-                    height: currentTempContainer.scrollHeight * scaleFactorFallback,
+                    width: currentTempContainerForFallback.scrollWidth * scaleFactorFallback,
+                    height: currentTempContainerForFallback.scrollHeight * scaleFactorFallback,
                     style: {
                         transform: `scale(${scaleFactorFallback})`,
                         transformOrigin: 'top left',
                     },
                     quality: 1.0,
                     bgcolor: '#ffffff',
-                    imagePlaceholder: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24"%3E%3Crect width="24" height="24" fill="%23cccccc"%3E%3C/rect%3E%3C/svg%3E'
                 };
                 
-                console.log("PDF Gen: Capturing with dom-to-image (fallback)...");
-                const dataUrl = await domtoimage.toPng(currentTempContainer, domToImageOptions);
-                
+                const dataUrl = await domtoimage.toPng(currentTempContainerForFallback, domToImageOptions);
                 const img = new Image();
                 img.onload = () => {
                     try {
                         const pdf = new jsPDF({
-                            orientation: 'landscape',
-                            unit: 'pt',
+                            orientation: 'landscape', unit: 'pt',
                             format: [img.width * (72/96) / scaleFactorFallback, img.height * (72/96) / scaleFactorFallback]
                         });
                         pdf.addImage(dataUrl, 'PNG', 0, 0, img.width / scaleFactorFallback, img.height / scaleFactorFallback);
-                        pdf.save('thoi-khoa-bieu-pro-fallback.pdf');
-                        setMessage("Đã tạo PDF thành công (phương pháp dự phòng dom-to-image)!");
-                        console.log("PDF Gen: PDF saved with dom-to-image fallback.");
-                    } catch (e) {
-                        console.error("PDF Gen: Error creating PDF from dom-to-image fallback:", e);
-                        setMessage("Lỗi tạo PDF (dự phòng): " + e.message);
-                    }
+                        pdf.save('thoi-khoa-bieu-fallback.pdf');
+                        setMessage("Đã tạo PDF (dự phòng dom-to-image)!");
+                    } catch (e) { setMessage("Lỗi PDF (dự phòng): " + e.message); }
                 };
-                img.onerror = () => {
-                    console.error("PDF Gen: Error loading dom-to-image (fallback) image");
-                    setMessage("Lỗi tải ảnh (dự phòng).");
-                };
+                img.onerror = () => { setMessage("Lỗi tải ảnh (dự phòng)."); };
                 img.src = dataUrl;
             }
         } catch (err) { 
-            console.error("Lỗi tổng thể khi tạo PDF: ", err);
-            setMessage("Đã có lỗi xảy ra khi tạo file PDF: " + err.message);
+            console.error("Lỗi tổng thể PDF: ", err);
+            setMessage("Lỗi PDF: " + err.message);
         } finally {
             cleanupTempContainer(); 
             if (tableWrapper) {
@@ -1441,7 +1384,6 @@ const PdfDownloadButton = () => {
             }
             if (faStyleElement && faStyleElement.parentNode) { 
                 document.head.removeChild(faStyleElement);
-                console.log("PDF Gen: Font Awesome CSS un-inlined.");
             }
             setIsGenerating(false);
         }
