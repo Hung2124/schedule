@@ -1189,17 +1189,17 @@ const PdfDownloadButton = () => {
 
     useEffect(() => {
         // Check if libraries are loaded
-        if (window.html2canvas && window.jspdf) {
+        if (window.domtoimage && window.jspdf) { // Check for domtoimage
             setLibsLoaded(true);
         } else {
             // Poll for libraries if not immediately available
             let attempts = 0;
             const interval = setInterval(() => {
                 attempts++;
-                if (window.html2canvas && window.jspdf) {
+                if (window.domtoimage && window.jspdf) { // Check for domtoimage
                     setLibsLoaded(true);
                     clearInterval(interval);
-                    console.log("PDF libraries loaded after polling.");
+                    console.log("PDF libraries (domtoimage, jspdf) loaded after polling.");
                 } else if (attempts > 20) { // Stop after 10 seconds (20 * 500ms)
                     clearInterval(interval);
                     console.warn("PDF libraries did not load after 10 seconds.");
@@ -1212,22 +1212,20 @@ const PdfDownloadButton = () => {
 
     const handleDownloadPdf = async () => {
         if (!libsLoaded) {
-            setMessage("Lỗi: Thư viện PDF chưa sẵn sàng. Vui lòng chờ hoặc làm mới trang.");
-            console.error("PDF libraries not loaded yet for download attempt.");
+            setMessage("Lỗi: Thư viện PDF (dom-to-image) chưa sẵn sàng. Vui lòng chờ hoặc làm mới trang.");
+            console.error("PDF libraries (dom-to-image) not loaded yet for download attempt.");
             return;
         }
-        // Ensure access to libraries via window object at the time of execution
-        const html2canvas = window.html2canvas;
+        
+        const domtoimage = window.domtoimage; // Use domtoimage
         const jsPDF = window.jspdf?.jsPDF;
 
-        if (!html2canvas || !jsPDF) {
-            setMessage("Lỗi nghiêm trọng: Thư viện PDF không khả dụng dù đã được báo cáo tải xong.");
-            console.error("Critical: html2canvas or jsPDF became unavailable after being reported as loaded.");
+        if (!domtoimage || !jsPDF) {
+            setMessage("Lỗi nghiêm trọng: Thư viện PDF (dom-to-image hoặc jspdf) không khả dụng.");
+            console.error("Critical: domtoimage or jsPDF became unavailable.");
             return;
         }
 
-        setIsGenerating(true);
-        setMessage("");
         setIsGenerating(true);
         setMessage("");
         const timetableTableElement = document.getElementById('actualTableToCapture');
@@ -1254,110 +1252,110 @@ const PdfDownloadButton = () => {
         try {
             if (tableWrapper) {
                 originalOverflow = tableWrapper.style.overflowX;
-                tableWrapper.style.overflowX = 'visible';
+                tableWrapper.style.overflowX = 'visible'; // Make sure full width is capturable
             }
-            console.log("PDF Gen: Waiting 1 second for content to render...");
-            await new Promise(resolve => setTimeout(resolve, 1000)); 
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Allow UI to update
 
-            const captureScale = 1.5; 
+            const scaleFactor = 1.5; // Keep scale for potentially better resolution
 
-            console.log("PDF Gen: Capturing timetable...");
-            const canvasTimetable = await html2canvas(timetableTableElement, {
-                scale: captureScale, useCORS: true, logging: true, backgroundColor: null, removeContainer: false,
-                width: timetableTableElement.offsetWidth, 
-                height: timetableTableElement.offsetHeight,
-                scrollX: 0, 
-                scrollY: 0,
-                windowWidth: timetableTableElement.scrollWidth,
-                windowHeight: timetableTableElement.scrollHeight
-            });
-            console.log("PDF Gen: Timetable canvas created:", canvasTimetable.width, "x", canvasTimetable.height);
-            if (tableWrapper) tableWrapper.style.overflowX = originalOverflow;
+            const domToImageOptions = {
+                width: timetableTableElement.offsetWidth * scaleFactor,
+                height: timetableTableElement.offsetHeight * scaleFactor,
+                style: {
+                    transform: `scale(${scaleFactor})`,
+                    transformOrigin: 'top left',
+                    // Ensure no external styles interfere if dom-to-image clones to body
+                },
+                quality: 1.0, // For PNG, this might not be as relevant as for JPEG
+                bgcolor: '#ffffff' // Explicit white background
+            };
+            
+            console.log("PDF Gen: Capturing timetable with dom-to-image...");
+            const timetableDataUrl = await domtoimage.toPng(timetableTableElement, domToImageOptions);
+            console.log("PDF Gen: Timetable dataURL created with dom-to-image (first 100):", timetableDataUrl.substring(0,100));
 
-            console.log("PDF Gen: Capturing notes...");
-            const canvasNotes = await html2canvas(notesElement, {
-                scale: captureScale, useCORS: true, logging: true, backgroundColor: null, removeContainer: false,
-                width: notesElement.scrollWidth, 
-                height: notesElement.scrollHeight,
-                scrollX: 0,
-                scrollY: 0,
-                windowWidth: notesElement.scrollWidth,
-                windowHeight: notesElement.scrollHeight
-            });
-            console.log("PDF Gen: Notes canvas created:", canvasNotes.width, "x", canvasNotes.height);
+            if (tableWrapper) tableWrapper.style.overflowX = originalOverflow; // Restore overflow
 
-            try {
-                console.log("PDF Gen: Timetable canvas dataURL (first 100 chars):", canvasTimetable.toDataURL().substring(0, 100));
-                console.log("PDF Gen: Notes canvas dataURL (first 100 chars):", canvasNotes.toDataURL().substring(0, 100));
-            } catch (e) {
-                console.error("PDF Gen: Error getting dataURL from individual canvases:", e);
-            }
-
+            const notesDomToImageOptions = {
+                width: notesElement.scrollWidth * scaleFactor,
+                height: notesElement.scrollHeight * scaleFactor,
+                style: {
+                    transform: `scale(${scaleFactor})`,
+                    transformOrigin: 'top left',
+                },
+                quality: 1.0,
+                bgcolor: '#ffffff'
+            };
+            console.log("PDF Gen: Capturing notes with dom-to-image...");
+            const notesDataUrl = await domtoimage.toPng(notesElement, notesDomToImageOptions);
+            console.log("PDF Gen: Notes dataURL created with dom-to-image (first 100):", notesDataUrl.substring(0,100));
+            
+            // Create a combined image on a new canvas
             const combinedCanvas = document.createElement('canvas');
             const ctx = combinedCanvas.getContext('2d');
-            const spacingBetweenElementsPx = Math.round(20 * captureScale);
+            const spacingBetweenElementsPx = Math.round(20 * scaleFactor);
 
-            combinedCanvas.width = Math.max(canvasTimetable.width, canvasNotes.width);
-            combinedCanvas.height = canvasTimetable.height + canvasNotes.height + spacingBetweenElementsPx;
+            const imgTimetable = new Image();
+            const imgNotes = new Image();
 
-            ctx.fillStyle = '#ffffff'; 
-            ctx.fillRect(0, 0, combinedCanvas.width, combinedCanvas.height);
+            let timetableLoaded = false;
+            let notesLoaded = false;
 
-            console.log("PDF Gen: Drawing timetable canvas onto combined canvas...");
-            const timetableX = (combinedCanvas.width - canvasTimetable.width) / 2;
-            ctx.drawImage(canvasTimetable, timetableX, 0);
-            console.log("PDF Gen: Timetable canvas drawn.");
+            const attemptPdfCreation = () => {
+                if (!timetableLoaded || !notesLoaded) return;
 
-            console.log("PDF Gen: Drawing notes canvas onto combined canvas...");
-            const notesX = (combinedCanvas.width - canvasNotes.width) / 2;
-            ctx.drawImage(canvasNotes, notesX, canvasTimetable.height + spacingBetweenElementsPx);
-            console.log("PDF Gen: Notes canvas drawn.");
+                combinedCanvas.width = Math.max(imgTimetable.width, imgNotes.width);
+                combinedCanvas.height = imgTimetable.height + imgNotes.height + spacingBetweenElementsPx;
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, combinedCanvas.width, combinedCanvas.height);
 
-            const imgWidthPx = combinedCanvas.width;
-            const imgHeightPx = combinedCanvas.height;
-            const pxToPtScaleFactor = 72 / 96;
-            let pdfPageWidthPt = imgWidthPx * pxToPtScaleFactor;
-            let pdfPageHeightPt = imgHeightPx * pxToPtScaleFactor;
-            
-            try {
+                const timetableX = (combinedCanvas.width - imgTimetable.width) / 2;
+                ctx.drawImage(imgTimetable, timetableX, 0);
+                const notesX = (combinedCanvas.width - imgNotes.width) / 2;
+                ctx.drawImage(imgNotes, notesX, imgTimetable.height + spacingBetweenElementsPx);
+                
+                console.log("PDF Gen: Combined canvas created from dom-to-image outputs.");
                 console.log("PDF Gen: Combined canvas dataURL (first 100 chars):", combinedCanvas.toDataURL().substring(0, 100));
-            } catch (e) {
-                console.error("PDF Gen: Error getting dataURL from combined canvas:", e);
-            }
-            console.log("PDF Gen: About to add image to PDF and save.");
-            
-            if (combinedCanvas.width > 0 && combinedCanvas.height > 0) {
-                console.log("PDF Gen: Attempting to add combined canvas image to PDF.");
-                try {
-                    const pdfForImage = new jsPDF({
-                        orientation: pdfPageWidthPt > pdfPageHeightPt ? 'l' : 'p',
-                        unit: 'pt',
-                        format: [pdfPageWidthPt, pdfPageHeightPt]
-                    });
-                    pdfForImage.addImage(combinedCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, pdfPageWidthPt, pdfPageHeightPt);
-                    console.log("PDF Gen: Image added to PDF. About to save.");
-                    pdfForImage.save('thoi-khoa-bieu-pro.pdf');
-                    console.log("PDF Gen: PDF with image save initiated.");
-                } catch (e) {
-                    console.error("PDF Gen: Error adding image to PDF or saving:", e);
-                    setMessage("Lỗi khi tạo PDF với hình ảnh: " + e.message);
-                    const errorPdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4'});
-                    errorPdf.text("Lỗi khi tạo hình ảnh lịch trình cho PDF.", 20, 20);
-                    errorPdf.text(e.message, 20, 40);
-                    errorPdf.save('thoi-khoa-bieu-error.pdf');
+
+                const imgWidthPx = combinedCanvas.width;
+                const imgHeightPx = combinedCanvas.height;
+                const pxToPtScaleFactor = 72 / 96; 
+                let pdfPageWidthPt = imgWidthPx * pxToPtScaleFactor;
+                let pdfPageHeightPt = imgHeightPx * pxToPtScaleFactor;
+
+                if (combinedCanvas.width > 0 && combinedCanvas.height > 0) {
+                    try {
+                        const pdf = new jsPDF({
+                            orientation: pdfPageWidthPt > pdfPageHeightPt ? 'l' : 'p',
+                            unit: 'pt',
+                            format: [pdfPageWidthPt, pdfPageHeightPt]
+                        });
+                        pdf.addImage(combinedCanvas.toDataURL('image/png', 1.0), 'PNG', 0, 0, pdfPageWidthPt, pdfPageHeightPt);
+                        pdf.save('thoi-khoa-bieu-pro.pdf');
+                        setMessage("Đã tạo PDF thành công!");
+                        console.log("PDF Gen: PDF saved successfully with dom-to-image.");
+                    } catch (e) {
+                        console.error("PDF Gen: Error adding image to PDF or saving (dom-to-image):", e);
+                        setMessage("Lỗi khi tạo PDF: " + e.message);
+                    }
+                } else {
+                    setMessage("Lỗi: Canvas kết hợp rỗng.");
                 }
-            } else {
-                console.warn("PDF Gen: Combined canvas has zero width or height. Not adding image.");
-                setMessage("Lỗi: Không thể tạo hình ảnh từ lịch trình (canvas rỗng).");
-                const emptyCanvasPdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4'});
-                emptyCanvasPdf.text("Lỗi: Canvas kết hợp để tạo hình ảnh lịch trình bị rỗng.", 20, 20);
-                emptyCanvasPdf.save('thoi-khoa-bieu-empty-canvas.pdf');
-            }
+                setIsGenerating(false);
+            };
+            
+            imgTimetable.onload = () => { timetableLoaded = true; attemptPdfCreation(); };
+            imgTimetable.onerror = () => { console.error("Error loading timetable image dataURL"); setMessage("Lỗi tải ảnh lịch trình."); setIsGenerating(false);};
+            imgTimetable.src = timetableDataUrl;
+
+            imgNotes.onload = () => { notesLoaded = true; attemptPdfCreation(); };
+            imgNotes.onerror = () => { console.error("Error loading notes image dataURL"); setMessage("Lỗi tải ảnh ghi chú."); setIsGenerating(false);};
+            imgNotes.src = notesDataUrl;
+
         } catch (err) {
-            console.error("Lỗi khi tạo PDF: ", err);
-            setMessage("Đã có lỗi xảy ra khi tạo file PDF. Chi tiết: " + err.message);
+            console.error("Lỗi khi tạo PDF với dom-to-image: ", err);
+            setMessage("Đã có lỗi xảy ra khi tạo file PDF: " + err.message);
             if (tableWrapper && originalOverflow !== undefined) tableWrapper.style.overflowX = originalOverflow;
-        } finally {
             setIsGenerating(false);
         }
     };
@@ -1375,7 +1373,7 @@ const PdfDownloadButton = () => {
                 {!isGenerating && libsLoaded && <i className="fas fa-file-pdf mr-2"></i>}
                 {isGenerating ? 'Đang tạo PDF...' : (!libsLoaded ? 'Đang tải thư viện...' : 'Tải xuống PDF')}
             </button>
-            {isGenerating && !message && libsLoaded && ( /* Only show separate spinner if libs are loaded but still generating */
+            {isGenerating && !message && libsLoaded && ( 
                 <div className="inline-flex items-center ml-4">
                     <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -1567,7 +1565,8 @@ function App() {
         document.head.appendChild(fontAwesomeLink);
 
         const libraries = [
-            { id: 'html2canvas-lib', src: 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js' },
+            // { id: 'html2canvas-lib', src: 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js' }, // Replaced by dom-to-image
+            { id: 'domtoimage-lib', src: 'https://cdnjs.cloudflare.com/ajax/libs/dom-to-image-more/2.9.5/dom-to-image-more.min.js' },
             { id: 'jspdf-lib', src: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js' },
             { id: 'tonejs-lib', src: 'https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js' }
         ];
@@ -1586,6 +1585,7 @@ function App() {
         
         return () => {
             document.head.removeChild(fontAwesomeLink);
+            // Optionally remove dynamically added library scripts if needed, though usually not necessary
         };
     }, []);
 
