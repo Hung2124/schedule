@@ -1304,9 +1304,9 @@ const PdfDownloadButton = () => {
                 const tempContainer = document.createElement('div');
                 tempContainer.style.position = 'absolute';
                 tempContainer.style.left = '-9999px';
-                tempContainer.style.backgroundColor = '#ffffff';
-                tempContainer.style.padding = '20px';
-                tempContainer.style.width = 'auto';
+                tempContainer.style.backgroundColor = '#ffffff'; // Keep background color
+                // tempContainer.style.padding = '20px'; // Removed padding to prevent extra whitespace
+                tempContainer.style.width = 'auto'; // Allow width to be determined by content initially
                 tempContainer.style.maxWidth = 'none';
                 
                 // Clone các phần tử để không ảnh hưởng đến giao diện
@@ -1339,22 +1339,23 @@ const PdfDownloadButton = () => {
                 tempContainer.appendChild(timetableClone);
                 tempContainer.appendChild(notesClone);
                 document.body.appendChild(tempContainer);
+
+                // Wait for initial render to calculate scrollWidth accurately
+                await new Promise(resolve => setTimeout(resolve, 200)); 
+                const containerActualWidth = tempContainer.scrollWidth;
+                tempContainer.style.width = `${containerActualWidth}px`; // Set container width explicitly to its content's width
                 
-                // Đảm bảo container có đủ chiều rộng
-                tempContainer.style.width = `${minWidth}px`;
-                tempContainer.style.minWidth = `${minWidth}px`;
+                console.log("PDF Gen: Temporary container dimensions (after explicit width set to scrollWidth):", 
+                            tempContainer.offsetWidth, "x", tempContainer.offsetHeight, "scrollW:", tempContainer.scrollWidth);
                 
-                console.log("PDF Gen: Temporary container created with dimensions:", 
-                            tempContainer.offsetWidth, "x", tempContainer.offsetHeight);
-                
-                // Đợi để đảm bảo container được render đầy đủ
+                // Đợi để đảm bảo container được render đầy đủ (existing longer delay)
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 
                 // Cấu hình cho dom-to-image
                 const scaleFactor = 2.0; 
                 const domToImageOptions = {
-                    width: minWidth * scaleFactor,
-                    height: tempContainer.scrollHeight * scaleFactor,
+                    width: containerActualWidth * scaleFactor, // Use actual width of the container
+                    height: tempContainer.scrollHeight * scaleFactor, // Use scrollHeight for full content
                     style: {
                         transform: `scale(${scaleFactor})`,
                         transformOrigin: 'top left',
@@ -1531,7 +1532,7 @@ const PdfDownloadButton = () => {
                         tempContainer.style.position = 'absolute';
                         tempContainer.style.left = '-9999px';
                         tempContainer.style.backgroundColor = '#ffffff';
-                        tempContainer.style.padding = '20px';
+                        // tempContainer.style.padding = '20px'; // Removed padding
                         
                         // Clone các phần tử để không ảnh hưởng đến giao diện
                         const timetableClone = timetableTableElement.cloneNode(true);
@@ -1559,32 +1560,41 @@ const PdfDownloadButton = () => {
                         notesClone.style.maxWidth = 'none';
                         notesClone.style.marginTop = '30px';
                         
-                        // Thiết lập container
-                        tempContainer.style.width = `${minWidth}px`;
-                        tempContainer.style.minWidth = `${minWidth}px`;
-                        
                         // Thêm vào container tạm thời
                         tempContainer.appendChild(timetableClone);
                         tempContainer.appendChild(notesClone);
                         document.body.appendChild(tempContainer);
+
+                        // Wait for initial render to calculate scrollWidth accurately
+                        await new Promise(resolve => setTimeout(resolve, 200));
+                        const containerActualWidthHtml2Pdf = tempContainer.scrollWidth;
+                        tempContainer.style.width = `${containerActualWidthHtml2Pdf}px`; // Set container width explicitly
+                        console.log("PDF Gen (html2pdf): Temporary container dimensions:",
+                                    tempContainer.offsetWidth, "x", tempContainer.offsetHeight, "scrollW:", tempContainer.scrollWidth);
                         
-                        // Đợi để đảm bảo container được render đầy đủ
+                        // Đợi để đảm bảo container được render đầy đủ (existing longer delay)
                         await new Promise(resolve => setTimeout(resolve, 1000));
                         
                         // Cấu hình cho html2pdf
+                        const html2canvasScale = 2;
                         const html2pdfOptions = {
-                            margin: 10,
+                            margin: 0, // Set margin to 0 as layout is controlled by tempContainer
                             filename: 'thoi-khoa-bieu-pro.pdf',
                             image: { type: 'jpeg', quality: 0.98 },
                             html2canvas: { 
-                                scale: 2,
+                                scale: html2canvasScale,
                                 useCORS: true,
-                                logging: false,
+                                logging: false, // Set to true for debugging html2canvas if needed
                                 letterRendering: true,
-                                width: minWidth,
-                                height: tempContainer.scrollHeight
+                                width: containerActualWidthHtml2Pdf, // Use actual width
+                                height: tempContainer.scrollHeight, // Use actual height
+                                backgroundColor: '#ffffff' // Explicitly set background for html2canvas
                             },
-                            jsPDF: { unit: 'mm', format: [minWidth * 0.264583, tempContainer.scrollHeight * 0.264583], orientation: 'landscape' }
+                            jsPDF: { 
+                                unit: 'px', 
+                                format: [containerActualWidthHtml2Pdf * html2canvasScale, tempContainer.scrollHeight * html2canvasScale], 
+                                orientation: (containerActualWidthHtml2Pdf > tempContainer.scrollHeight ? 'l' : 'p')
+                            }
                         };
                         
                         // Sử dụng html2pdf để tạo PDF
