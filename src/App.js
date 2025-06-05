@@ -1303,8 +1303,8 @@ const PdfDownloadButton = () => {
             const scaleFactor = 1.5; 
 
             const domToImageOptions = {
-                width: timetableTableElement.offsetWidth * scaleFactor,
-                height: timetableTableElement.offsetHeight * scaleFactor,
+                width: timetableTableElement.scrollWidth * scaleFactor, // Use scrollWidth
+                height: timetableTableElement.scrollHeight * scaleFactor, // Use scrollHeight
                 style: {
                     transform: `scale(${scaleFactor})`,
                     transformOrigin: 'top left',
