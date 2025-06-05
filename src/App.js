@@ -1428,8 +1428,71 @@ const ActivityNotifier = () => {
     return null; 
 };
 
-// --- Main App Component ---
-// Trivial change to re-trigger deployment
+// --- Components ---
+// ... existing code ...
+
+// Component mới để giải thích phương pháp học
+const LearningMethodInfo = () => {
+    return (
+        <div className="my-6 p-6 bg-white dark:bg-slate-800 rounded-lg shadow-lg">
+            <h3 className="text-xl font-semibold mb-4 text-indigo-700 dark:text-indigo-300 flex items-center">
+                <i className="fas fa-info-circle mr-2"></i>
+                Giải Thích Phương Pháp Học
+            </h3>
+            <div className="space-y-4">
+                <div className="flex items-start">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-700 flex items-center justify-center mr-3">
+                        <i className="fas fa-clock text-purple-600 dark:text-purple-200"></i>
+                    </div>
+                    <div className="flex-1">
+                        <h4 className="text-md font-medium text-purple-700 dark:text-purple-300">
+                            Học 25p, nghỉ 5p x N lần (Phương pháp Pomodoro):
+                        </h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                            Lặp lại chu kỳ gồm 25 phút tập trung học sâu, sau đó nghỉ ngắn 5 phút. 
+                            Thực hiện chu kỳ này N lần. Ví dụ, "học 25p, nghỉ 5p x 4 lần" có nghĩa là: 
+                            (25 phút học + 5 phút nghỉ) x 4. Tổng cộng là 100 phút học và 15 phút nghỉ ngắn xen kẽ.
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex items-start">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-green-100 dark:bg-green-700 flex items-center justify-center mr-3">
+                        <i className="fas fa-couch text-green-600 dark:text-green-200"></i>
+                    </div>
+                    <div className="flex-1">
+                        <h4 className="text-md font-medium text-green-700 dark:text-green-300">
+                            Nghỉ dài 15p:
+                        </h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                            Sau khi hoàn thành một số chu kỳ Pomodoro (thường là 4), bạn sẽ có một 
+                            khoảng thời gian nghỉ dài hơn là 15 phút. Điều này giúp não bộ thư giãn 
+                            và tái tạo năng lượng.
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex items-start">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-700 flex items-center justify-center mr-3">
+                        <i className="fas fa-users text-blue-600 dark:text-blue-200"></i>
+                    </div>
+                    <div className="flex-1">
+                        <h4 className="text-md font-medium text-blue-700 dark:text-blue-300">
+                            AIO từ 20:00-23:00:
+                        </h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                            Khối thời gian học tập trung 3 giờ liền tục qua Google Meet, không áp dụng 
+                            Pomodoro để đảm bảo tính liên mạch.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ... existing code ...
+
 function App() {
     useEffect(() => {
         const fontAwesomeLink = document.createElement('link');
@@ -1471,6 +1534,7 @@ function App() {
                             <PomodoroTimer />
                             <TimetableGrid />
                             <ToolsSection />
+                            <LearningMethodInfo />
                         </main>
                         <footer className="text-center py-4 text-xs text-gray-500 dark:text-gray-400 border-t dark:border-gray-700">
                             Thời Khóa Biểu Pro - Được tạo bởi AI. App ID: {appId}
