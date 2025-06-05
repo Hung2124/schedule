@@ -1245,15 +1245,18 @@ const PdfDownloadButton = () => {
             return;
         }
         
-        console.log("PDF Gen: Timetable Element Dims:", timetableTableElement.offsetWidth, "x", timetableTableElement.offsetHeight);
-        console.log("PDF Gen: Notes Element Dims:", notesElement.scrollWidth, "x", notesElement.scrollHeight);
+        console.log("PDF Gen: Timetable Element Dims (offset):", timetableTableElement.offsetWidth, "x", timetableTableElement.offsetHeight);
+        console.log("PDF Gen: Timetable Element Dims (scroll):", timetableTableElement.scrollWidth, "x", timetableTableElement.scrollHeight);
+        console.log("PDF Gen: Notes Element Dims (scroll):", notesElement.scrollWidth, "x", notesElement.scrollHeight);
 
-        let originalOverflow;
+        let originalOverflowX, originalOverflowY;
         let faStyleElement = null;
         try {
             if (tableWrapper) {
-                originalOverflow = tableWrapper.style.overflowX;
+                originalOverflowX = tableWrapper.style.overflowX;
+                originalOverflowY = tableWrapper.style.overflowY;
                 tableWrapper.style.overflowX = 'visible'; 
+                tableWrapper.style.overflowY = 'visible'; 
             }
             
             // --- START: Inline Font Awesome CSS ---
@@ -1317,7 +1320,9 @@ const PdfDownloadButton = () => {
             const timetableDataUrl = await domtoimage.toPng(timetableTableElement, domToImageOptions);
             console.log("PDF Gen: Timetable dataURL created with dom-to-image (first 100):", timetableDataUrl.substring(0,100));
 
-            if (tableWrapper) tableWrapper.style.overflowX = originalOverflow; 
+            // Restore overflow settings for tableWrapper immediately after capturing timetable if it's not needed for notes
+            // However, notes might also be affected by tableWrapper's overflow if it's a parent.
+            // Let's defer restoring overflow until after notes are also captured.
 
             const notesDomToImageOptions = {
                 width: notesElement.scrollWidth * scaleFactor,
@@ -1443,7 +1448,10 @@ const PdfDownloadButton = () => {
         } catch (err) {
             console.error("Lỗi khi tạo PDF với dom-to-image: ", err);
             setMessage("Đã có lỗi xảy ra khi tạo file PDF: " + err.message);
-            if (tableWrapper && originalOverflow !== undefined) tableWrapper.style.overflowX = originalOverflow;
+            if (tableWrapper) {
+                if (originalOverflowX !== undefined) tableWrapper.style.overflowX = originalOverflowX;
+                if (originalOverflowY !== undefined) tableWrapper.style.overflowY = originalOverflowY;
+            }
             setIsGenerating(false);
             if (faStyleElement && faStyleElement.parentNode) { 
                 document.head.removeChild(faStyleElement);
@@ -1707,3 +1715,24 @@ function App() {
 }
 
 export default App;
+
+</final_file_content>
+
+IMPORTANT: For any future changes to this file, use the final_file_content shown above as your reference. This content reflects the current state of the file, including any auto-formatting (e.g., if you used single quotes but the formatter converted them to double quotes). Always base your SEARCH/REPLACE operations on this final version to ensure accuracy.
+
+<environment_details>
+# VSCode Visible Files
+schedule-app/src/App.js
+
+# VSCode Open Tabs
+schedule-app/src/App.js
+
+# Current Time
+6/5/2025, 8:38:29 AM (Asia/Bangkok, UTC+7:00)
+
+# Context Window Usage
+579,446 / 1,048.576K tokens used (55%)
+
+# Current Mode
+ACT MODE
+</environment_details>
