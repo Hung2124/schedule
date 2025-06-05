@@ -1262,12 +1262,24 @@ const PdfDownloadButton = () => {
                 console.log("PDF Gen: Fetching Font Awesome CSS from:", faCssUrl);
                 const response = await fetch(faCssUrl);
                 if (response.ok) {
-                    const cssText = await response.text();
+                    let cssText = await response.text();
+                    // Rewrite relative URLs in the CSS to absolute URLs
+                    const cssBaseUrl = faCssUrl.substring(0, faCssUrl.lastIndexOf('/css/') + 1); // e.g., https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/
+                    cssText = cssText.replace(/url\(\s*['"]?(\.\.\/webfonts\/[^'")]+)['"]?\s*\)/g, (match, relativeUrl) => {
+                        // relativeUrl will be like ../webfonts/fa-solid-900.woff2
+                        const absoluteUrl = new URL(relativeUrl, cssBaseUrl + 'css/').href; 
+                        // Constructing absolute URL: cssBaseUrl is up to /font-awesome/6.0.0-beta3/
+                        // The relative path starts with ../ from the /css/ directory.
+                        // So, new URL(relativeUrl, 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/').href
+                        console.log(`PDF Gen: Rewriting FA URL: ${relativeUrl} to ${absoluteUrl}`);
+                        return `url('${absoluteUrl}')`;
+                    });
+
                     faStyleElement = document.createElement('style');
                     faStyleElement.type = 'text/css';
                     faStyleElement.appendChild(document.createTextNode(cssText));
                     document.head.appendChild(faStyleElement);
-                    console.log("PDF Gen: Font Awesome CSS inlined.");
+                    console.log("PDF Gen: Font Awesome CSS inlined with absolute paths.");
                 } else {
                     console.warn("PDF Gen: Failed to fetch Font Awesome CSS. Status:", response.status);
                 }
