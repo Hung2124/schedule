@@ -1228,6 +1228,70 @@ const PdfDownloadButton = () => {
 
         setIsGenerating(true);
         setMessage("");
+        setIsGenerating(true);
+        setMessage("Đang thực hiện test html2canvas với phần tử đơn giản...");
+
+        // --- START DEBUG: Capture a simple element ---
+        const simpleTestElement = document.createElement('div');
+        simpleTestElement.id = 'simpleTestElementForPdf';
+        simpleTestElement.style.width = '200px';
+        simpleTestElement.style.height = '100px';
+        simpleTestElement.style.backgroundColor = 'lightblue';
+        simpleTestElement.style.color = 'black';
+        simpleTestElement.style.border = '2px solid blue';
+        simpleTestElement.style.padding = '10px';
+        simpleTestElement.style.textAlign = 'center';
+        simpleTestElement.style.fontFamily = 'Arial, sans-serif';
+        simpleTestElement.style.fontSize = '16px';
+        simpleTestElement.innerHTML = 'Đây là test html2canvas!<br/>Dòng 2 của test.';
+        document.body.appendChild(simpleTestElement);
+        console.log("PDF Gen Debug: Simple test element created and appended.");
+
+        try {
+            await new Promise(resolve => setTimeout(resolve, 500)); // Short delay for the new element
+
+            console.log("PDF Gen Debug: Capturing simpleTestElement...");
+            const simpleCanvas = await html2canvas(simpleTestElement, {
+                logging: true,
+                useCORS: true,
+                backgroundColor: '#ffffff' // Force a white background for the test canvas itself
+            });
+            console.log("PDF Gen Debug: Simple canvas created:", simpleCanvas.width, "x", simpleCanvas.height);
+
+            const debugContainer = document.getElementById('pdfDebugContainer') || document.createElement('div');
+            debugContainer.id = 'pdfDebugContainer';
+            debugContainer.innerHTML = ''; // Clear previous debug content
+            debugContainer.style.cssText = "border: 2px dashed red; padding: 10px; margin-top: 20px; text-align: left; background-color: #f0f0f0;";
+            
+            const title = document.createElement('h3');
+            title.innerText = "Ảnh Test Canvas Đơn Giản:";
+            debugContainer.appendChild(title);
+            simpleCanvas.style.border = "1px solid darkblue";
+            simpleCanvas.style.maxWidth = "100%"; 
+            simpleCanvas.style.height = "auto";
+            debugContainer.appendChild(simpleCanvas);
+            
+            if (!document.getElementById('pdfDebugContainer')) {
+                 document.body.appendChild(debugContainer);
+            }
+            
+            setMessage("Đã hiển thị canvas test đơn giản. Vui lòng kiểm tra.");
+            console.log("PDF Gen Debug: Simple canvas appended to body for visual inspection.");
+            
+        } catch (err) {
+            console.error("PDF Gen Debug: Error capturing or displaying simple test element:", err);
+            setMessage("Lỗi khi test html2canvas với phần tử đơn giản: " + err.message);
+        } finally {
+            setIsGenerating(false);
+            if (simpleTestElement.parentNode) {
+                simpleTestElement.parentNode.removeChild(simpleTestElement);
+                console.log("PDF Gen Debug: Simple test element removed from DOM.");
+            }
+        }
+        return; // Stop here for this debug test
+        // --- END DEBUG ---
+
+        // Original code below is now bypassed by the return statement above
         const timetableTableElement = document.getElementById('actualTableToCapture');
         const notesElement = document.getElementById('notesContentForPdf');
         const tableWrapper = document.getElementById('tableWrapper');
