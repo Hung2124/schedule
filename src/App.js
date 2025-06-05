@@ -1340,6 +1340,38 @@ const PdfDownloadButton = () => {
             const imgTimetable = new Image();
             const imgNotes = new Image();
 
+            // --- START DEBUG: Display notesImage before combining ---
+            const notesDebugImg = new Image();
+            notesDebugImg.onload = () => {
+                const debugContainer = document.getElementById('pdfDebugContainer') || document.createElement('div');
+                debugContainer.id = 'pdfDebugContainer';
+                // Clear only if it's a new test, or append if adding more debug images
+                if (!debugContainer.querySelector('#notesDebugTitle')) {
+                    debugContainer.innerHTML = ''; 
+                    debugContainer.style.cssText = "border: 2px dashed green; padding: 10px; margin-top: 20px; text-align: left; background-color: #e8f5e9;";
+                }
+                
+                const title = document.createElement('h3');
+                title.id = 'notesDebugTitle';
+                title.innerText = "Ảnh Test Canvas Ghi Chú (Notes):";
+                debugContainer.appendChild(title);
+                
+                notesDebugImg.style.border = "1px solid darkgreen";
+                notesDebugImg.style.maxWidth = "100%"; 
+                notesDebugImg.style.height = "auto";
+                debugContainer.appendChild(notesDebugImg);
+                
+                if (!document.getElementById('pdfDebugContainer')) {
+                     document.body.appendChild(debugContainer);
+                }
+                console.log("PDF Gen Debug: Notes image appended to body for visual inspection.");
+            };
+            notesDebugImg.onerror = () => {
+                console.error("PDF Gen Debug: Error loading notesDataUrl into notesDebugImg.");
+            };
+            notesDebugImg.src = notesDataUrl; // notesDataUrl is available here
+            // --- END DEBUG ---
+
             let timetableLoaded = false;
             let notesLoaded = false;
 
