@@ -1264,15 +1264,18 @@ const PdfDownloadButton = () => {
                 if (response.ok) {
                     let cssText = await response.text();
                     // Rewrite relative URLs in the CSS to absolute URLs
-                    const cssBaseUrl = faCssUrl.substring(0, faCssUrl.lastIndexOf('/css/') + 1); // e.g., https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/
-                    cssText = cssText.replace(/url\(\s*['"]?(\.\.\/webfonts\/[^'")]+)['"]?\s*\)/g, (match, relativeUrl) => {
-                        // relativeUrl will be like ../webfonts/fa-solid-900.woff2
-                        const absoluteUrl = new URL(relativeUrl, cssBaseUrl + 'css/').href; 
-                        // Constructing absolute URL: cssBaseUrl is up to /font-awesome/6.0.0-beta3/
-                        // The relative path starts with ../ from the /css/ directory.
-                        // So, new URL(relativeUrl, 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/').href
-                        console.log(`PDF Gen: Rewriting FA URL: ${relativeUrl} to ${absoluteUrl}`);
-                        return `url('${absoluteUrl}')`;
+                    // Example: url("../webfonts/fa-solid-900.woff2") in CSS from https://.../css/all.min.css
+                    // should become url("https://.../webfonts/fa-solid-900.woff2")
+                    cssText = cssText.replace(/url\(\s*['"]?(\.\.\/webfonts\/[^'")]+?)['"]?\s*\)/g, (match, relativeUrlPath) => {
+                        try {
+                            // relativeUrlPath is like ../webfonts/fa-solid-900.woff2
+                            const absoluteUrl = new URL(relativeUrlPath, faCssUrl).href;
+                            console.log(`PDF Gen: Rewriting FA URL: ${match} to url('${absoluteUrl}')`);
+                            return `url('${absoluteUrl}')`;
+                        } catch (e) {
+                            console.error(`PDF Gen: Error creating absolute URL for ${relativeUrlPath} with base ${faCssUrl}`, e);
+                            return match; // fallback to original if URL creation fails
+                        }
                     });
 
                     faStyleElement = document.createElement('style');
