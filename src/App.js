@@ -1264,7 +1264,12 @@ const PdfDownloadButton = () => {
             console.log("PDF Gen: Capturing timetable...");
             const canvasTimetable = await html2canvas(timetableTableElement, {
                 scale: captureScale, useCORS: true, logging: true, backgroundColor: null, removeContainer: false,
-                width: timetableTableElement.offsetWidth, height: timetableTableElement.offsetHeight,
+                width: timetableTableElement.offsetWidth, 
+                height: timetableTableElement.offsetHeight,
+                scrollX: 0, 
+                scrollY: 0,
+                windowWidth: timetableTableElement.scrollWidth,
+                windowHeight: timetableTableElement.scrollHeight
             });
             console.log("PDF Gen: Timetable canvas created:", canvasTimetable.width, "x", canvasTimetable.height);
             if (tableWrapper) tableWrapper.style.overflowX = originalOverflow;
@@ -1272,7 +1277,12 @@ const PdfDownloadButton = () => {
             console.log("PDF Gen: Capturing notes...");
             const canvasNotes = await html2canvas(notesElement, {
                 scale: captureScale, useCORS: true, logging: true, backgroundColor: null, removeContainer: false,
-                width: notesElement.scrollWidth, height: notesElement.scrollHeight,
+                width: notesElement.scrollWidth, 
+                height: notesElement.scrollHeight,
+                scrollX: 0,
+                scrollY: 0,
+                windowWidth: notesElement.scrollWidth,
+                windowHeight: notesElement.scrollHeight
             });
             console.log("PDF Gen: Notes canvas created:", canvasNotes.width, "x", canvasNotes.height);
 
