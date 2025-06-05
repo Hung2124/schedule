@@ -1218,7 +1218,6 @@ const PdfDownloadButton = () => {
         }
         
         // Sử dụng html2pdf thay vì dom-to-image và jspdf riêng lẻ
-        const html2pdf = window.html2pdf;
         const domtoimage = window.domtoimage; 
         const jsPDF = window.jspdf?.jsPDF;
 
