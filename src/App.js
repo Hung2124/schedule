@@ -1261,10 +1261,9 @@ const PdfDownloadButton = () => {
         let originalOverflowX, originalOverflowY;
         let faStyleElement = null;
         
-        // Ensure tempContainer is cleaned up from previous attempts if any
         cleanupTempContainer(); 
         tempContainerRef.current = document.createElement('div');
-        const tempContainer = tempContainerRef.current; // Use the ref for consistency
+        const tempContainer = tempContainerRef.current; 
 
         try {
             if (tableWrapper) {
@@ -1274,7 +1273,6 @@ const PdfDownloadButton = () => {
                 tableWrapper.style.overflowY = 'visible'; 
             }
             
-            // --- START: Inline Font Awesome CSS (common for both methods if needed by html2canvas) ---
             try {
                 const faCssUrl = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css';
                 console.log("PDF Gen: Fetching Font Awesome CSS from:", faCssUrl);
@@ -1298,38 +1296,41 @@ const PdfDownloadButton = () => {
             } catch (e) {
                 console.error("PDF Gen: Error fetching/inlining Font Awesome CSS:", e);
             }
-            // --- END: Inline Font Awesome CSS ---
 
-            await new Promise(resolve => setTimeout(resolve, 1500)); // General delay for rendering
+            await new Promise(resolve => setTimeout(resolve, 500)); // Increased delay for FA and initial render
 
             // --- PHƯƠNG PHÁP 1: Sử dụng html2pdf.js (PRIORITIZED) ---
             try {
                 console.log("PDF Gen: Attempting with html2pdf.js first...");
                 
                 tempContainer.style.position = 'absolute';
-                tempContainer.style.left = '-9999px';
+                tempContainer.style.left = '-9999px'; // Keep off-screen
                 tempContainer.style.backgroundColor = '#ffffff';
-                tempContainer.style.width = 'auto';
+                tempContainer.style.width = 'auto'; // Let content define initial width
                 tempContainer.style.maxWidth = 'none';
                 
                 const timetableClone = timetableTableElement.cloneNode(true);
                 const notesClone = notesElement.cloneNode(true);
                 
-                const minWidth = Math.max(1200, timetableTableElement.scrollWidth);
+                const minWidth = Math.max(1200, timetableTableElement.scrollWidth); 
                 timetableClone.style.width = `${minWidth}px`;
                 notesClone.style.width = `${minWidth}px`;
-                notesClone.style.marginTop = '30px';
+                notesClone.style.marginTop = '30px'; // Spacing between table and notes
                 
                 tempContainer.appendChild(timetableClone);
                 tempContainer.appendChild(notesClone);
                 document.body.appendChild(tempContainer);
 
-                await new Promise(resolve => setTimeout(resolve, 200));
+                // Allow browser to calculate dimensions of the assembled tempContainer
+                await new Promise(resolve => setTimeout(resolve, 300)); // Short delay for layout
                 const containerActualWidthHtml2Pdf = tempContainer.scrollWidth;
-                tempContainer.style.width = `${containerActualWidthHtml2Pdf}px`;
-                console.log("PDF Gen (html2pdf): Temp container dims:", tempContainer.offsetWidth, "x", tempContainer.offsetHeight, "scrollW:", tempContainer.scrollWidth);
+                const containerActualHeightHtml2Pdf = tempContainer.scrollHeight;
+                tempContainer.style.width = `${containerActualWidthHtml2Pdf}px`; // Fix width for capture
+
+                console.log("PDF Gen (html2pdf): Temp container for capture - Width:", containerActualWidthHtml2Pdf, "Height:", containerActualHeightHtml2Pdf);
                 
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                // Additional delay to ensure rendering is complete before capture
+                await new Promise(resolve => setTimeout(resolve, 1200)); // Longer delay before capture
                 
                 const html2canvasScale = 2;
                 const html2pdfOptions = {
@@ -1341,14 +1342,13 @@ const PdfDownloadButton = () => {
                         useCORS: true,
                         logging: false, 
                         letterRendering: true,
-                        width: containerActualWidthHtml2Pdf, 
-                        height: tempContainer.scrollHeight, 
+                        // width and height removed to let html2pdf determine from element
                         backgroundColor: '#ffffff' 
                     },
                     jsPDF: { 
                         unit: 'px', 
-                        format: [containerActualWidthHtml2Pdf * html2canvasScale, tempContainer.scrollHeight * html2canvasScale], 
-                        orientation: (containerActualWidthHtml2Pdf > tempContainer.scrollHeight ? 'l' : 'p')
+                        // Format will be derived from the canvas size by html2pdf
+                        orientation: (containerActualWidthHtml2Pdf > containerActualHeightHtml2Pdf ? 'l' : 'p')
                     }
                 };
                 
@@ -1361,9 +1361,9 @@ const PdfDownloadButton = () => {
                 setMessage("Lỗi html2pdf: " + html2pdfErr.message + ". Thử dự phòng...");
                 
                 // --- PHƯƠNG PHÁP 2: Fallback to DOM-to-Image + jsPDF ---
-                // Ensure tempContainer is still valid or recreate if necessary
                 if (!tempContainerRef.current || !tempContainerRef.current.parentNode) {
-                    cleanupTempContainer(); // Clean up just in case
+                    // This block might be redundant if tempContainer was already set up and not cleaned by html2pdf's error
+                    cleanupTempContainer(); 
                     tempContainerRef.current = document.createElement('div');
                     const newTempContainer = tempContainerRef.current;
                     newTempContainer.style.position = 'absolute';
@@ -1389,7 +1389,7 @@ const PdfDownloadButton = () => {
                     newTempContainer.style.width = `${containerActualWidthFb}px`;
                     await new Promise(resolve => setTimeout(resolve, 1000));
                 }
-                const currentTempContainer = tempContainerRef.current; // Use the potentially recreated container
+                const currentTempContainer = tempContainerRef.current;
 
                 const scaleFactorFallback = 2.0;
                 const domToImageOptions = {
@@ -1413,7 +1413,7 @@ const PdfDownloadButton = () => {
                         const pdf = new jsPDF({
                             orientation: 'landscape',
                             unit: 'pt',
-                            format: [img.width * (72/96) / scaleFactorFallback, img.height * (72/96) / scaleFactorFallback] // Adjust format based on scaled image
+                            format: [img.width * (72/96) / scaleFactorFallback, img.height * (72/96) / scaleFactorFallback]
                         });
                         pdf.addImage(dataUrl, 'PNG', 0, 0, img.width / scaleFactorFallback, img.height / scaleFactorFallback);
                         pdf.save('thoi-khoa-bieu-pro-fallback.pdf');
@@ -1430,11 +1430,11 @@ const PdfDownloadButton = () => {
                 };
                 img.src = dataUrl;
             }
-        } catch (err) { // Catch errors from the outer try (e.g., tableWrapper issues)
+        } catch (err) { 
             console.error("Lỗi tổng thể khi tạo PDF: ", err);
             setMessage("Đã có lỗi xảy ra khi tạo file PDF: " + err.message);
         } finally {
-            cleanupTempContainer(); // Ensure cleanup happens
+            cleanupTempContainer(); 
             if (tableWrapper) {
                 if (originalOverflowX !== undefined) tableWrapper.style.overflowX = originalOverflowX;
                 if (originalOverflowY !== undefined) tableWrapper.style.overflowY = originalOverflowY;
