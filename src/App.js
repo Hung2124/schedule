@@ -1169,222 +1169,244 @@ const SettingsModal = ({ onClose }) => {
     );
 };
 
-const StaticNotesSection = () => (
-    <div className="notes-section bg-indigo-50 dark:bg-slate-800 p-4 md:p-6 rounded-lg shadow" id="notesContentForPdf">
-        <h2 className="text-lg md:text-xl font-semibold text-indigo-800 dark:text-indigo-300 mb-3 flex items-center">
-            <i className="fas fa-info-circle mr-2"></i>Giải Thích Phương Pháp Học
-        </h2>
-        <div className="notes-content text-indigo-700 dark:text-indigo-200 space-y-2 text-sm md:text-base">
-            <p><strong><i className="fas fa-stopwatch mr-1"></i>Học 25p, nghỉ 5p x N lần (Phương pháp Pomodoro):</strong> Lặp lại chu kỳ gồm 25 phút tập trung học sâu, sau đó nghỉ ngắn 5 phút. Thực hiện chu kỳ này N lần. Ví dụ, "học 25p, nghỉ 5p x 4 lần" có nghĩa là: (25 phút học + 5 phút nghỉ) x 4. Tổng cộng là 100 phút học và 15 phút nghỉ ngắn xen kẽ.</p>
-            <p><strong><i className="fas fa-coffee mr-1"></i>Nghỉ dài 15p:</strong> Sau khi hoàn thành một số chu kỳ Pomodoro (thường là 4), bạn sẽ có một khoảng thời gian nghỉ dài hơn là 15 phút. Điều này giúp não bộ thư giãn và tái tạo năng lượng.</p>
-            <p><strong><i className="fas fa-users-cog mr-1"></i>AIO từ 20:00-23:00:</strong> Khối thời gian học tập trung 3 giờ liên tục qua Google Meet, không áp dụng Pomodoro để đảm bảo tính liền mạch.</p>
-        </div>
-    </div>
-);
-
 const PdfDownloadButton = () => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [message, setMessage] = useState("");
-    const [libsLoaded, setLibsLoaded] = useState(false);
-    const tempContainerRef = useRef(null); 
+    const { settings } = useSettings();
+    const { schedule } = useSchedule(); // Assuming schedule data is available via this hook
 
     useEffect(() => {
-        let attempts = 0;
-        const interval = setInterval(() => {
-            if (window.domtoimage && window.jspdf && window.html2pdf) {
-                setLibsLoaded(true);
-                clearInterval(interval);
-                console.log("PDF libraries loaded.");
-            } else {
-                attempts++;
-                if (attempts > 20) {
-                    clearInterval(interval);
-                    console.warn("PDF libraries did not load after 10 seconds.");
-                    setMessage("Lỗi: Không thể tải thư viện PDF. Vui lòng thử làm mới trang.");
+        const loadScript = (url, id) => {
+            return new Promise((resolve, reject) => {
+                if (document.getElementById(id)) {
+                    console.log(`Script ${id} already loaded`);
+                    resolve();
+                    return;
                 }
+                const script = document.createElement('script');
+                script.id = id;
+                script.src = url;
+                script.async = true;
+                script.onload = () => {
+                    console.log(`Script ${id} loaded successfully`);
+                    resolve();
+                };
+                script.onerror = (error) => {
+                    console.error(`Error loading script ${id}:`, error);
+                    reject(new Error(`Failed to load ${id}`));
+                };
+                document.head.appendChild(script);
+            });
+        };
+
+        const loadAllScripts = async () => {
+            setMessage("Đang tải thư viện PDF...");
+            try {
+                // Only load html2pdf.js
+                await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js', 'html2pdf-lib');
+                await new Promise(resolve => setTimeout(resolve, 500)); // Delay for library initialization
+
+                if (typeof window.html2pdf === 'function') {
+                    console.log("html2pdf.js loaded and initialized successfully.");
+                    setMessage(""); // Clear loading message
+                } else {
+                    throw new Error("Thư viện html2pdf.js không tải được hoặc không khởi tạo đúng.");
+                }
+            } catch (error) {
+                console.error("Error loading PDF libraries:", error);
+                setMessage(`Lỗi tải thư viện PDF: ${error.message}. Vui lòng thử làm mới trang.`);
             }
-        }, 500);
-        return () => clearInterval(interval);
+        };
+
+        loadAllScripts();
     }, []);
 
-    const cleanupTempContainer = () => {
-        if (tempContainerRef.current && tempContainerRef.current.parentNode) {
-            document.body.removeChild(tempContainerRef.current);
-            tempContainerRef.current = null;
-            console.log("PDF Gen: Temporary container cleaned up.");
+    // Helper to get computed styles and format them for inline application
+    const getElementStyles = (element) => {
+        if (!element) return '';
+        const s = window.getComputedStyle(element);
+        return `
+            background-color: ${s.backgroundColor || 'transparent'};
+            color: ${s.color || '#000000'};
+            font-family: ${s.fontFamily || 'Arial, sans-serif'};
+            font-size: ${s.fontSize || '10px'};
+            font-weight: ${s.fontWeight || 'normal'};
+            text-align: ${s.textAlign || 'left'};
+            padding: ${s.padding || '2px'};
+            border: 1px solid #cccccc; 
+            vertical-align: ${s.verticalAlign || 'middle'};
+            line-height: ${s.lineHeight || 'normal'};
+        `;
+    };
+    
+    // Helper to extract icon (using Unicode for FontAwesome checkboxes for reliability)
+    const getIconContent = (cellElement) => {
+        const icon = cellElement.querySelector('i.fas');
+        if (icon) {
+            if (icon.classList.contains('fa-check-square')) { // Checked box
+                return '<span style=\"font-family: \'Font Awesome 5 Free\', Arial; font-weight: 900; font-size: 12px;\">\\u2611</span> '; // ☑
+            } else if (icon.classList.contains('fa-square')) { // Unchecked box
+                return '<span style=\"font-family: \'Font Awesome 5 Free\', Arial; font-weight: 400; font-size: 12px;\">\\u2610</span> '; // ☐
+            }
+            // Could add more icon mappings here if needed
         }
+        return '';
     };
 
-    const handleDownloadPdf = async () => {
-        if (!libsLoaded) {
-            setMessage("Lỗi: Thư viện PDF chưa sẵn sàng.");
-            return;
-        }
-        
-        const domtoimage = window.domtoimage; 
-        const jsPDF = window.jspdf?.jsPDF;
 
-        if (!domtoimage || !jsPDF || !window.html2pdf) {
-            setMessage("Lỗi nghiêm trọng: Thư viện PDF không khả dụng.");
+    const handleDownloadPdf = async () => {
+        if (typeof window.html2pdf !== 'function') {
+            setMessage("Lỗi: Thư viện PDF (html2pdf.js) chưa sẵn sàng. Vui lòng đợi giây lát hoặc làm mới trang.");
             return;
         }
 
         setIsGenerating(true);
-        setMessage("");
-        const timetableTableElement = document.getElementById('actualTableToCapture');
-        const notesElement = document.getElementById('notesContentForPdf');
-        const tableWrapper = document.getElementById('tableWrapper');
-
-        if (!timetableTableElement || !notesElement) {
-            setMessage("Lỗi: Không tìm thấy phần tử cần thiết để tạo PDF.");
-            setIsGenerating(false);
-            return;
-        }
-        
-        let originalOverflowX, originalOverflowY;
-        let faStyleElement = null;
-        
-        cleanupTempContainer(); 
-        tempContainerRef.current = document.createElement('div');
-        const tempContainer = tempContainerRef.current; 
+        setMessage("Đang chuẩn bị dữ liệu và tạo PDF...");
 
         try {
-            if (tableWrapper) {
-                originalOverflowX = tableWrapper.style.overflowX;
-                originalOverflowY = tableWrapper.style.overflowY;
-                tableWrapper.style.overflowX = 'visible'; 
-                tableWrapper.style.overflowY = 'visible'; 
+            const originalTableElement = document.getElementById('timetableContentForPdf');
+            if (!originalTableElement) {
+                throw new Error("Không tìm thấy bảng thời khóa biểu (ID: timetableContentForPdf).");
             }
+
+            let pdfHtml = `<div style="font-family: Arial, sans-serif; width: 100%;">`;
+            pdfHtml += `<h1 style="text-align: center; color: #3730a3; font-size: 20px; margin-bottom: 10px; font-weight: bold;">Thời Khóa Biểu</h1>`;
             
-            try {
-                const faCssUrl = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css';
-                const response = await fetch(faCssUrl);
-                if (response.ok) {
-                    let cssText = await response.text();
-                    cssText = cssText.replace(/url\(\s*['"]?(\.\.\/webfonts\/.*?)['"]?\s*\)/g, (match, relativeUrlPath) => {
-                        try { return `url('${new URL(relativeUrlPath, faCssUrl).href}')`; } catch (e) { return match; }
+            if (schedule && schedule.name) {
+                 pdfHtml += `<h2 style="text-align: center; color: #4A5568; font-size: 16px; margin-bottom: 15px; font-weight: normal;">${schedule.name}</h2>`;
+            }
+
+            pdfHtml += `<table style="width: 100%; border-collapse: collapse; table-layout: fixed;">`; // Added table-layout: fixed
+
+            const originalThead = originalTableElement.querySelector('thead');
+            if (originalThead) {
+                pdfHtml += `<thead>`;
+                originalThead.querySelectorAll('tr').forEach(row => {
+                    pdfHtml += `<tr>`;
+                    row.querySelectorAll('th').forEach(th => {
+                        const thStyles = getElementStyles(th);
+                        // Override for consistent header appearance
+                        const headerSpecificStyles = `background-color: #4A5568 !important; color: white !important; font-weight: bold !important; text-align: center !important; padding: 6px 4px !important; border: 1px solid #A0AEC0 !important;`;
+                        pdfHtml += `<th style="${thStyles} ${headerSpecificStyles}">${th.innerText.trim()}</th>`;
                     });
-                    faStyleElement = document.createElement('style');
-                    faStyleElement.type = 'text/css';
-                    faStyleElement.appendChild(document.createTextNode(cssText));
-                    document.head.appendChild(faStyleElement);
-                }
-            } catch (e) { console.error("PDF Gen: Error inlining Font Awesome CSS:", e); }
+                    pdfHtml += `</tr>`;
+                });
+                pdfHtml += `</thead>`;
+            }
 
-            await new Promise(resolve => setTimeout(resolve, 100)); // Brief delay for FA CSS to apply
+            const originalTbody = originalTableElement.querySelector('tbody');
+            if (originalTbody) {
+                pdfHtml += `<tbody>`;
+                originalTbody.querySelectorAll('tr').forEach(row => {
+                    pdfHtml += `<tr>`;
+                    row.querySelectorAll('td').forEach(td => {
+                        const tdStyles = getElementStyles(td);
+                        let cellContentHtml = '';
+                        
+                        // Get icon if present
+                        cellContentHtml += getIconContent(td);
 
-            // --- PHƯƠNG PHÁP 1: html2pdf.js (PRIORITIZED) ---
-            try {
-                console.log("PDF Gen: Attempting with html2pdf.js...");
-                
-                tempContainer.style.position = 'absolute';
-                tempContainer.style.left = '-9999px';
-                tempContainer.style.backgroundColor = '#ffffff';
-                tempContainer.style.width = 'auto'; 
-                tempContainer.style.maxWidth = 'none';
-                tempContainer.style.overflow = 'visible'; // Ensure container itself doesn't clip
+                        // Extract main subject text
+                        // Prioritize elements that likely contain the main subject name
+                        const subjectDiv = td.querySelector('div:not([class*="text-xs"])');
+                        const subjectSpan = td.querySelector('span:not([class*="text-xs"])');
+                        const subjectBold = td.querySelector('.font-semibold');
+                        
+                        let mainText = '';
+                        if (subjectDiv) mainText = subjectDiv.textContent.trim();
+                        else if (subjectSpan) mainText = subjectSpan.textContent.trim();
+                        else if (subjectBold) mainText = subjectBold.textContent.trim();
+                        else { // Fallback: attempt to get first significant text node or div/span content
+                            const firstSignificantChild = Array.from(td.childNodes).find(
+                                node => (node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== '') || 
+                                        (node.nodeType === Node.ELEMENT_NODE && (node.tagName === 'DIV' || node.tagName === 'SPAN') && node.textContent.trim() !== '' && !node.classList.contains('text-xs'))
+                            );
+                            if (firstSignificantChild) {
+                                mainText = firstSignificantChild.textContent.trim();
+                            }
+                        }
+                        if (mainText) {
+                             cellContentHtml += `<div style="font-weight: bold; margin-bottom: 3px; word-wrap: break-word;">${mainText}</div>`;
+                        }
 
-                const timetableClone = timetableTableElement.cloneNode(true);
-                const notesClone = notesElement.cloneNode(true);
-                
-                const minWidth = Math.max(1200, timetableTableElement.scrollWidth); 
-                timetableClone.style.width = `${minWidth}px`;
-                notesClone.style.width = `${minWidth}px`;
-                notesClone.style.marginTop = '30px'; 
-                
-                tempContainer.appendChild(timetableClone);
-                tempContainer.appendChild(notesClone);
-                document.body.appendChild(tempContainer);
+                        // Extract details text (usually smaller font)
+                        const detailsElement = td.querySelector('.text-xs');
+                        if (detailsElement) {
+                            // Sanitize details to prevent overly long strings if necessary
+                            let detailsText = detailsElement.innerHTML.replace(/<br\\s*[/]?>/gi, '; ').replace(/<[^>]+>/g, ' ').replace(/\\s\\s+/g, ' ').trim();
+                            cellContentHtml += `<div style="font-size: 8px; word-wrap: break-word;">${detailsText}</div>`;
+                        }
+                        
+                        // If cellContentHtml is still empty after specific extractions, use innerText as a last resort.
+                        if (cellContentHtml.trim() === '') {
+                           cellContentHtml = td.innerText.trim().replace(/\\n/g, '<br>');
+                        }
 
-                await new Promise(resolve => setTimeout(resolve, 250)); // Delay for initial layout of tempContainer
-                
-                const containerActualWidth = tempContainer.scrollWidth;
-                const containerActualHeight = tempContainer.scrollHeight;
-                tempContainer.style.width = `${containerActualWidth}px`; 
-                // tempContainer.style.height = `${containerActualHeight}px`; // Let height be natural
+                        pdfHtml += `<td style="${tdStyles} word-wrap: break-word; overflow-wrap: break-word;">${cellContentHtml}</td>`;
+                    });
+                    pdfHtml += `</tr>`;
+                });
+                pdfHtml += `</tbody>`;
+            }
+            pdfHtml += `</table>`;
+            
+            const today = new Date();
+            pdfHtml += `<div style="text-align: right; font-size: 9px; color: #718096; margin-top: 12px;">Tạo lúc: ${today.toLocaleDateString('vi-VN')} ${today.toLocaleTimeString('vi-VN')}</div>`;
+            pdfHtml += `</div>`; // Close main container
 
-                console.log("PDF Gen (html2pdf): Temp container sized to - W:", containerActualWidth, "H:", containerActualHeight);
-                
-                await new Promise(resolve => setTimeout(resolve, 1500)); // Longer delay for full rendering before capture
-                
-                const html2canvasScale = 2;
-                const html2pdfOptions = {
-                    margin: 0,
-                    filename: 'thoi-khoa-bieu-pro.pdf',
-                    image: { type: 'png', quality: 1.0 },
-                    html2canvas: { 
-                        scale: html2canvasScale,
-                        useCORS: true,
-                        logging: true, // Enable for more detailed logs from html2canvas
-                        letterRendering: true,
-                        width: containerActualWidth, // Explicitly pass width
-                        height: containerActualHeight, // Explicitly pass height
-                        windowWidth: containerActualWidth, // Hint for viewport
-                        windowHeight: containerActualHeight, // Hint for viewport
-                        backgroundColor: '#ffffff' 
-                    },
-                    jsPDF: { 
-                        unit: 'px', 
-                        format: [containerActualWidth * html2canvasScale, containerActualHeight * html2canvasScale], 
-                        orientation: (containerActualWidth > containerActualHeight ? 'l' : 'p')
+            // For debugging the generated HTML:
+            // console.log("Generated PDF HTML structure:", pdfHtml);
+
+            const opt = {
+                margin: [8, 8, 8, 8], // mm [top, left, bottom, right]
+                filename: `ThoiKhoaBieu-${schedule && schedule.name ? schedule.name.replace(/\\s+/g, '_') : 'TongHop'}-${today.getFullYear()}${(today.getMonth()+1).toString().padStart(2,'0')}${today.getDate().toString().padStart(2,'0')}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: {
+                    scale: 2.5, // Increased scale for better quality
+                    logging: true, // Enable logging for html2canvas
+                    useCORS: true, // For cross-origin images if any
+                    letterRendering: true, // Improves text rendering
+                    scrollX: 0, // Ensure capture starts from the top-left
+                    scrollY: 0,
+                     // Attempt to capture full width/height of the content.
+                    windowWidth: originalTableElement.scrollWidth,
+                    windowHeight: originalTableElement.scrollHeight,
+                    backgroundColor: settings.darkMode ? '#1A202C' : '#FFFFFF', // Dynamic background based on theme
+                    removeContainer: true, // Clean up the cloned container
+                    onclone: (clonedDoc) => {
+                        // You can further manipulate the cloned document here if needed
+                        // For example, explicitly load FontAwesome if Unicode isn't enough
+                        let faLink = clonedDoc.createElement('link');
+                        faLink.rel = 'stylesheet';
+                        faLink.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css'; // Using a common FA version
+                        clonedDoc.head.appendChild(faLink);
+
+                        // Apply global font to ensure consistency if needed
+                        const style = clonedDoc.createElement('style');
+                        style.textContent = `
+                            body, table, div, span, td, th { font-family: 'Arial Unicode MS', Arial, sans-serif !important; }
+                            .fas, .far, .fab { font-family: 'Font Awesome 5 Free', 'Font Awesome 5 Brands', 'Arial Unicode MS', Arial !important; }
+                        `; // Ensure Font Awesome font families are prioritized
+                        clonedDoc.head.appendChild(style);
                     }
-                };
-                
-                await window.html2pdf().from(tempContainer).set(html2pdfOptions).save();
-                setMessage("Đã tạo PDF thành công (html2pdf)!");
-                
-            } catch (html2pdfErr) {
-                console.error("PDF Gen: html2pdf.js failed:", html2pdfErr);
-                setMessage("Lỗi html2pdf: " + html2pdfErr.message + ". Thử dự phòng...");
-                
-                // --- PHƯƠNG PHÁP 2: Fallback to DOM-to-Image + jsPDF ---
-                const currentTempContainerForFallback = tempContainerRef.current; // Use the already setup container
-                if (!currentTempContainerForFallback || !currentTempContainerForFallback.parentNode) {
-                     // Should not happen if html2pdf error didn't remove it, but as a safeguard:
-                    console.error("PDF Gen: Fallback - tempContainer missing.");
-                    throw new Error("Fallback tempContainer missing");
-                }
+                },
+                jsPDF: {
+                    unit: 'mm',
+                    format: 'a4',
+                    orientation: 'landscape',
+                    compress: true, // Enable PDF compression
+                },
+                pagebreak: { mode: ['avoid-all', 'css', 'legacy'] } // Try to avoid breaking elements across pages
+            };
 
-                const scaleFactorFallback = 2.0;
-                const domToImageOptions = {
-                    width: currentTempContainerForFallback.scrollWidth * scaleFactorFallback,
-                    height: currentTempContainerForFallback.scrollHeight * scaleFactorFallback,
-                    style: {
-                        transform: `scale(${scaleFactorFallback})`,
-                        transformOrigin: 'top left',
-                    },
-                    quality: 1.0,
-                    bgcolor: '#ffffff',
-                };
-                
-                const dataUrl = await domtoimage.toPng(currentTempContainerForFallback, domToImageOptions);
-                const img = new Image();
-                img.onload = () => {
-                    try {
-                        const pdf = new jsPDF({
-                            orientation: 'landscape', unit: 'pt',
-                            format: [img.width * (72/96) / scaleFactorFallback, img.height * (72/96) / scaleFactorFallback]
-                        });
-                        pdf.addImage(dataUrl, 'PNG', 0, 0, img.width / scaleFactorFallback, img.height / scaleFactorFallback);
-                        pdf.save('thoi-khoa-bieu-fallback.pdf');
-                        setMessage("Đã tạo PDF (dự phòng dom-to-image)!");
-                    } catch (e) { setMessage("Lỗi PDF (dự phòng): " + e.message); }
-                };
-                img.onerror = () => { setMessage("Lỗi tải ảnh (dự phòng)."); };
-                img.src = dataUrl;
-            }
-        } catch (err) { 
-            console.error("Lỗi tổng thể PDF: ", err);
-            setMessage("Lỗi PDF: " + err.message);
+            setMessage("Đang render PDF, vui lòng đợi...");
+            await window.html2pdf().set(opt).from(pdfHtml).save();
+            setMessage("Đã tạo PDF thành công!");
+
+        } catch (error) {
+            console.error("Lỗi nghiêm trọng khi tạo PDF:", error);
+            setMessage(`Lỗi tạo PDF: ${error.message}. Vui lòng kiểm tra console để biết thêm chi tiết.`);
         } finally {
-            cleanupTempContainer(); 
-            if (tableWrapper) {
-                if (originalOverflowX !== undefined) tableWrapper.style.overflowX = originalOverflowX;
-                if (originalOverflowY !== undefined) tableWrapper.style.overflowY = originalOverflowY;
-            }
-            if (faStyleElement && faStyleElement.parentNode) { 
-                document.head.removeChild(faStyleElement);
-            }
             setIsGenerating(false);
         }
     };
@@ -1394,24 +1416,16 @@ const PdfDownloadButton = () => {
             <button
                 id="downloadPdfBtn"
                 onClick={handleDownloadPdf}
-                disabled={isGenerating || !libsLoaded}
-                className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg inline-flex items-center transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
-                title={!libsLoaded ? "Đang tải thư viện PDF..." : "Tải xuống PDF"}
+                disabled={isGenerating || typeof window.html2pdf !== 'function'}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg inline-flex items-center transition duration-150 ease-in-out shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                title={typeof window.html2pdf !== 'function' ? "Đang tải thư viện PDF..." : "Tải xuống Thời khóa biểu (PDF)"}
             >
-                {(!libsLoaded || isGenerating) && <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
-                {!isGenerating && libsLoaded && <i className="fas fa-file-pdf mr-2"></i>}
-                {isGenerating ? 'Đang tạo PDF...' : (!libsLoaded ? 'Đang tải thư viện...' : 'Tải xuống PDF')}
+                {isGenerating && <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
+                {typeof window.html2pdf !== 'function' && !isGenerating && <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
+                {!isGenerating && typeof window.html2pdf === 'function' && <i className="fas fa-file-pdf mr-2"></i>}
+                {isGenerating ? 'Đang tạo PDF...' : (typeof window.html2pdf !== 'function' ? 'Đang tải thư viện...' : 'Tải PDF chất lượng cao')}
             </button>
-            {isGenerating && !message && libsLoaded && ( 
-                <div className="inline-flex items-center ml-4">
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span className="text-gray-700 dark:text-gray-300">Vui lòng chờ...</span>
-                </div>
-            )}
-            {message && <div className={`mt-2 text-sm ${message.includes('Lỗi') ? 'text-red-500' : 'text-green-500'}`}>{message}</div>}
+            {message && <div className={`mt-3 text-sm font-medium ${message.includes('Lỗi') ? 'text-red-600' : 'text-green-600'}`}>{message}</div>}
         </div>
     );
 };
@@ -1632,7 +1646,6 @@ function App() {
                             <TimetableGrid />
                             <ToolsSection />
                             <PdfDownloadButton />
-                            <StaticNotesSection />
                         </main>
                         <footer className="text-center py-4 text-xs text-gray-500 dark:text-gray-400 border-t dark:border-gray-700">
                             Thời Khóa Biểu Pro - Được tạo bởi AI. App ID: {appId}
