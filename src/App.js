@@ -1266,9 +1266,16 @@ const PdfDownloadButton = () => {
                     // Rewrite relative URLs in the CSS to absolute URLs
                     // Example: url("../webfonts/fa-solid-900.woff2") in CSS from https://.../css/all.min.css
                     // should become url("https://.../webfonts/fa-solid-900.woff2")
-                    cssText = cssText.replace(/url\(\s*['"]?(\.\.\/webfonts\/[^'")]+?)['"]?\s*\)/g, (match, relativeUrlPath) => {
+                    // Regex explanation:
+                    // url\( matches "url("
+                    // \s* zero or more whitespace
+                    // ['"]? optionally matches a quote
+                    // (\.\.\/webfonts\/.*?) captures "../webfonts/" followed by any characters non-greedily (the actual font file path part)
+                    // ['"]? optionally matches a closing quote
+                    // \s* zero or more whitespace
+                    // \) matches the closing parenthesis
+                    cssText = cssText.replace(/url\(\s*['"]?(\.\.\/webfonts\/.*?)['"]?\s*\)/g, (match, relativeUrlPath) => {
                         try {
-                            // relativeUrlPath is like ../webfonts/fa-solid-900.woff2
                             const absoluteUrl = new URL(relativeUrlPath, faCssUrl).href;
                             console.log(`PDF Gen: Rewriting FA URL: ${match} to url('${absoluteUrl}')`);
                             return `url('${absoluteUrl}')`;
