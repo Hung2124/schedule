@@ -1366,8 +1366,10 @@ const TimetableGrid = () => {
                             <tbody>
                                 {schedule.timeSlots.map((slot, tsIdx) => (
                                     <tr key={slot.time} className={tsIdx % 2 === 0 ? 'bg-gray-50/70 dark:bg-slate-700/30' : 'bg-white/70 dark:bg-slate-800/40'}>
-                                        <td className="time-slot border border-gray-200 dark:border-gray-700 p-2 md:p-3 text-xs md:text-sm align-middle font-medium">
-                                            {slot.time}
+                                        <td className="time-slot border border-gray-200 dark:border-gray-700 p-2 md:p-3 text-xs md:text-sm align-middle font-medium text-center whitespace-nowrap bg-indigo-50/50 dark:bg-indigo-900/20 min-w-[90px]">
+                                            <div className="flex flex-col items-center justify-center">
+                                                <span className="inline-block w-full text-center">{slot.time}</span>
+                                            </div>
                                         </td>
                                         {days.map((day) => { 
                                             const activity = slot.activities.find(act => act.day === day);

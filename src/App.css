@@ -230,6 +230,19 @@ button.bg-gradient-to-r {
   transition: background-position 0.3s ease, transform 0.2s ease !important;
 }
 
+/* Styling for time slots to ensure consistent display */
+.time-slot {
+  min-width: 90px !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  font-weight: 500 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1.4 !important;
+  padding: 10px 6px !important;
+}
+
 button.bg-gradient-to-r:hover {
   background-position: right center !important;
   transform: translateY(-1px) !important;
