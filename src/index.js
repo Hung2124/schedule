@@ -13,6 +13,8 @@ root.render(
 );
 
 // Stagewise toolbar integration - only in development mode
+// Temporarily disabled to fix UI issues
+/*
 if (process.env.NODE_ENV === 'development') {
   import('@stagewise/toolbar-react').then(({ StagewiseToolbar }) => {
     // Create a separate container for the toolbar
@@ -36,6 +38,7 @@ if (process.env.NODE_ENV === 'development') {
     );
   });
 }
+*/
 
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))

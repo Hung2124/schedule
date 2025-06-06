@@ -39,14 +39,274 @@
 
 /* CSS để ẩn thanh cuộn khi chụp lịch */
 .hide-scrollbar {
-  overflow: -moz-hidden-unscrollable !important;
-  overflow: hidden !important;
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
+  overflow: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .hide-scrollbar::-webkit-scrollbar {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Dynamic Island inspired styles */
+.backdrop-blur-lg {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  pointer-events: none;
+}
+
+.backdrop-blur-sm {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+
+/* Animate the status dot */
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Gradient text effect */
+.bg-clip-text {
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* Glass morphism effect */
+.glass-morphism {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  pointer-events: none;
+}
+
+/* Grid Pattern Background */
+.bg-grid-pattern {
+  background-image: 
+    linear-gradient(to right, rgba(100, 100, 100, 0.1) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(100, 100, 100, 0.1) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.dark .bg-grid-pattern {
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Hard-code các định nghĩa màu sắc để đảm bảo chúng không bị purge */
+
+/* Light mode colors */
+.bg-green-100 { background-color: rgba(220, 252, 231, 1) !important; }
+.bg-yellow-100 { background-color: rgba(254, 249, 195, 1) !important; }
+.bg-sky-100 { background-color: rgba(224, 242, 254, 1) !important; }
+.bg-pink-100 { background-color: rgba(252, 231, 243, 1) !important; }
+.bg-violet-100 { background-color: rgba(237, 233, 254, 1) !important; }
+.bg-rose-200 { background-color: rgba(254, 205, 211, 1) !important; }
+.bg-teal-200 { background-color: rgba(153, 246, 228, 1) !important; }
+.bg-red-200 { background-color: rgba(254, 202, 202, 1) !important; }
+.bg-blue-200 { background-color: rgba(191, 219, 254, 1) !important; }
+.bg-gray-300 { background-color: rgba(209, 213, 219, 1) !important; }
+.bg-purple-200 { background-color: rgba(233, 213, 255, 1) !important; }
+.bg-emerald-200 { background-color: rgba(167, 243, 208, 1) !important; }
+.bg-cyan-200 { background-color: rgba(165, 243, 252, 1) !important; }
+.bg-orange-200 { background-color: rgba(254, 215, 170, 1) !important; }
+.bg-lime-200 { background-color: rgba(217, 249, 157, 1) !important; }
+.bg-amber-200 { background-color: rgba(253, 230, 138, 1) !important; }
+.bg-indigo-200 { background-color: rgba(199, 210, 254, 1) !important; }
+
+/* Dark mode colors */
+.dark .bg-green-700 { background-color: rgba(21, 128, 61, 1) !important; }
+.dark .bg-yellow-700 { background-color: rgba(161, 98, 7, 1) !important; }
+.dark .bg-sky-700 { background-color: rgba(3, 105, 161, 1) !important; }
+.dark .bg-pink-700 { background-color: rgba(190, 24, 93, 1) !important; }
+.dark .bg-violet-700 { background-color: rgba(109, 40, 217, 1) !important; }
+.dark .bg-rose-600 { background-color: rgba(225, 29, 72, 1) !important; }
+.dark .bg-teal-600 { background-color: rgba(13, 148, 136, 1) !important; }
+.dark .bg-red-600 { background-color: rgba(220, 38, 38, 1) !important; }
+.dark .bg-blue-600 { background-color: rgba(37, 99, 235, 1) !important; }
+.dark .bg-gray-600 { background-color: rgba(75, 85, 99, 1) !important; }
+.dark .bg-purple-600 { background-color: rgba(147, 51, 234, 1) !important; }
+.dark .bg-emerald-600 { background-color: rgba(5, 150, 105, 1) !important; }
+.dark .bg-cyan-600 { background-color: rgba(8, 145, 178, 1) !important; }
+.dark .bg-orange-600 { background-color: rgba(234, 88, 12, 1) !important; }
+.dark .bg-lime-600 { background-color: rgba(101, 163, 13, 1) !important; }
+.dark .bg-amber-600 { background-color: rgba(217, 119, 6, 1) !important; }
+.dark .bg-indigo-600 { background-color: rgba(79, 70, 229, 1) !important; }
+
+/* Text colors */
+.text-green-800 { color: rgba(22, 101, 52, 1) !important; }
+.text-yellow-800 { color: rgba(133, 77, 14, 1) !important; }
+.text-sky-800 { color: rgba(7, 89, 133, 1) !important; }
+.text-pink-800 { color: rgba(157, 23, 77, 1) !important; }
+.text-violet-800 { color: rgba(91, 33, 182, 1) !important; }
+.text-rose-800 { color: rgba(159, 18, 57, 1) !important; }
+.text-teal-800 { color: rgba(17, 94, 89, 1) !important; }
+.text-red-800 { color: rgba(153, 27, 27, 1) !important; }
+.text-blue-800 { color: rgba(30, 64, 175, 1) !important; }
+.text-gray-800 { color: rgba(31, 41, 55, 1) !important; }
+.text-purple-800 { color: rgba(107, 33, 168, 1) !important; }
+.text-emerald-800 { color: rgba(6, 95, 70, 1) !important; }
+.text-cyan-800 { color: rgba(21, 94, 117, 1) !important; }
+.text-orange-800 { color: rgba(154, 52, 18, 1) !important; }
+.text-lime-800 { color: rgba(63, 98, 18, 1) !important; }
+.text-amber-800 { color: rgba(146, 64, 14, 1) !important; }
+.text-indigo-800 { color: rgba(55, 48, 163, 1) !important; }
+
+.dark .text-green-200 { color: rgba(187, 247, 208, 1) !important; }
+.dark .text-yellow-200 { color: rgba(254, 240, 138, 1) !important; }
+.dark .text-sky-200 { color: rgba(186, 230, 253, 1) !important; }
+.dark .text-pink-200 { color: rgba(251, 207, 232, 1) !important; }
+.dark .text-violet-200 { color: rgba(221, 214, 254, 1) !important; }
+.dark .text-rose-100 { color: rgba(255, 228, 230, 1) !important; }
+.dark .text-teal-100 { color: rgba(204, 251, 241, 1) !important; }
+.dark .text-red-100 { color: rgba(254, 226, 226, 1) !important; }
+.dark .text-blue-100 { color: rgba(219, 234, 254, 1) !important; }
+.dark .text-gray-100 { color: rgba(243, 244, 246, 1) !important; }
+.dark .text-purple-100 { color: rgba(243, 232, 255, 1) !important; }
+.dark .text-emerald-100 { color: rgba(209, 250, 229, 1) !important; }
+.dark .text-cyan-100 { color: rgba(207, 250, 254, 1) !important; }
+.dark .text-orange-100 { color: rgba(255, 237, 213, 1) !important; }
+.dark .text-lime-100 { color: rgba(236, 252, 203, 1) !important; }
+.dark .text-amber-100 { color: rgba(254, 243, 199, 1) !important; }
+.dark .text-indigo-100 { color: rgba(224, 231, 255, 1) !important; }
+
+/* Border colors */
+.border-green-500 { border-color: rgba(34, 197, 94, 1) !important; }
+.border-yellow-500 { border-color: rgba(234, 179, 8, 1) !important; }
+.border-sky-500 { border-color: rgba(14, 165, 233, 1) !important; }
+.border-pink-500 { border-color: rgba(236, 72, 153, 1) !important; }
+.border-violet-500 { border-color: rgba(139, 92, 246, 1) !important; }
+.border-rose-500 { border-color: rgba(244, 63, 94, 1) !important; }
+.border-teal-500 { border-color: rgba(20, 184, 166, 1) !important; }
+.border-red-500 { border-color: rgba(239, 68, 68, 1) !important; }
+.border-blue-500 { border-color: rgba(59, 130, 246, 1) !important; }
+.border-gray-500 { border-color: rgba(107, 114, 128, 1) !important; }
+.border-purple-500 { border-color: rgba(168, 85, 247, 1) !important; }
+.border-emerald-500 { border-color: rgba(16, 185, 129, 1) !important; }
+.border-cyan-500 { border-color: rgba(6, 182, 212, 1) !important; }
+.border-orange-500 { border-color: rgba(249, 115, 22, 1) !important; }
+.border-lime-500 { border-color: rgba(132, 204, 22, 1) !important; }
+.border-amber-500 { border-color: rgba(245, 158, 11, 1) !important; }
+.border-indigo-500 { border-color: rgba(99, 102, 241, 1) !important; }
+
+/* Đảm bảo backgrounds gradient cũng được giữ lại */
+.from-indigo-700 { --tw-gradient-from: rgba(67, 56, 202, 1) !important; }
+.via-indigo-600 { --tw-gradient-via-stops: rgba(79, 70, 229, 1) !important; }
+.to-indigo-700 { --tw-gradient-to: rgba(67, 56, 202, 1) !important; }
+
+.from-amber-100\/90 { --tw-gradient-from: rgba(254, 243, 199, 0.9) !important; }
+.to-amber-50\/80 { --tw-gradient-to: rgba(255, 251, 235, 0.8) !important; }
+
+/* Đảm bảo các nút hoạt động mượt mà và không bị mất màu */
+.activity-cell button {
+  opacity: 1 !important;
+  visibility: visible !important;
+  transition: transform 0.2s, background-color 0.2s !important;
+}
+
+.activity-cell button:hover {
+  transform: scale(1.05) !important;
+}
+
+/* Đảm bảo các nút gradient luôn hiển thị đúng */
+button.bg-gradient-to-r {
+  background-size: 200% 200% !important;
+  background-position: left center !important;
+  transition: background-position 0.3s ease, transform 0.2s ease !important;
+}
+
+button.bg-gradient-to-r:hover {
+  background-position: right center !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Hiệu ứng mượt mà cho dark mode */
+html.dark {
+  transition: color 0.2s ease-out, background-color 0.2s ease-out !important;
+}
+
+/* Đảm bảo vision khi chuyển dark/light mode */
+* {
+  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter !important;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1) !important;
+  transition-duration: 150ms !important;
+}
+
+/* Giải quyết vấn đề về backdrop filter trên các trình duyệt khác nhau */
+.backdrop-blur-sm, .backdrop-blur-md, .backdrop-blur-lg {
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+/* Đảm bảo các phần tử đã click được lưu đúng state */
+.line-through {
+  text-decoration: line-through !important;
+}
+
+/* Đảm bảo các gradient text luôn hiển thị */
+.text-transparent.bg-gradient-to-r {
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+}
+
+/* Fix màu sắc biến mất ngay lập tức */
+.activity-cell, .activity-cell * {
+  opacity: 1 !important;
+  visibility: visible !important;
+  transition: none !important; /* Vô hiệu hóa transition có thể gây mất màu */
+}
+
+/* Đảm bảo màu nền luôn được hiển thị */
+[class*="bg-"] {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Vô hiệu hóa các animation không cần thiết */
+* {
+  animation: none !important;
+}
+
+/* Chỉ giữ lại animation cần thiết */
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
+}
+
+/* Đảm bảo các nút có thể click */
+button, a, input, select, textarea {
+  position: relative;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+/* Đảm bảo các nút có thể click */
+.activity-cell, .activity-cell * {
+  pointer-events: auto;
+  z-index: 5;
+}
+
+/* Đảm bảo visibility của các phần tử */
+[class*="bg-"] {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Đảm bảo các phần tử đã click được lưu đúng state */
+.line-through {
+  text-decoration: line-through;
 }

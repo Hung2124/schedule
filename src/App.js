@@ -297,81 +297,160 @@ const AuthProvider = ({ children }) => {
 };
 
 const SettingsProvider = ({ children }) => {
-    const { user } = useAuth();
-    const [settings, setSettings] = useState(defaultSettings);
-    const [loadingSettings, setLoadingSettings] = useState(true);
+    const [settings, setSettings] = useState(null);
+    const [loading, setLoading] = useState(true);
 
-    const loadSettings = useCallback(async (currentUser) => {
-        if (currentUser && db) {
-            setLoadingSettings(true);
-            const settingsRef = doc(db, `users/${currentUser.uid}/preferences`, 'userSettings');
+    // Khai báo hàm toggleDarkMode với useCallback để tránh tạo hàm mới mỗi khi render 
+    const toggleDarkMode = useCallback((forceDark) => {
+        if (!settings) return; // Tránh lỗi nếu settings chưa được khởi tạo
+        
+        const newDarkMode = forceDark !== undefined ? forceDark : !settings.darkMode;
+        
+        if (newDarkMode) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+        
+        // Cập nhật settings với logic ở bên trong hàm này
+        const updatedSettings = {
+            ...settings,
+            darkMode: newDarkMode
+        };
+        
+        setSettings(updatedSettings);
+        
+        // Lưu vào localStorage trong mọi trường hợp để phục vụ non-auth users
+        localStorage.setItem('scheduleAppSettings', JSON.stringify(updatedSettings));
+        
+        if (auth.currentUser) {
+            const settingsRef = doc(db, `users/${auth.currentUser.uid}/settings/main`);
+            setDoc(settingsRef, updatedSettings, { merge: true })
+                .catch(error => console.error("Error updating darkMode in Firestore:", error));
+        }
+    }, [settings]); // Chỉ phụ thuộc vào settings
+
+    // Cập nhật settings chung - tách riêng với toggleDarkMode
+    const updateSettings = useCallback(async (newSettingsPartial) => {
+        try {
+            if (!settings) return false;
+            
+            const updatedSettings = {
+                ...settings,
+                ...newSettingsPartial
+            };
+            
+            setSettings(updatedSettings);
+            
+            // Lưu vào localStorage trong mọi trường hợp để phục vụ non-auth users
+            localStorage.setItem('scheduleAppSettings', JSON.stringify(updatedSettings));
+            
+            if (auth.currentUser) {
+                const settingsRef = doc(db, `users/${auth.currentUser.uid}/settings/main`);
+                await setDoc(settingsRef, updatedSettings, { merge: true });
+            }
+            
+            return true;
+        } catch (error) {
+            console.error("Error updating settings:", error);
+            return false;
+        }
+    }, [settings]);
+
+    // Các hàm con khác
+    const updateSubjectColor = useCallback((subjectKey, colorProperties) => {
+        if (!settings) return;
+        const updatedColors = { ...settings.subjectColors, [subjectKey]: colorProperties };
+        updateSettings({ subjectColors: updatedColors });
+    }, [settings, updateSettings]);
+    
+    const updateScheduleNameInSettings = useCallback((newName) => {
+        if (!settings) return;
+        updateSettings({ scheduleName: newName });
+    }, [settings, updateSettings]);
+    
+    // Load settings khi component khởi tạo
+    useEffect(() => {
+        const loadSettings = async () => {
+            setLoading(true);
             try {
-                const docSnap = await getDoc(settingsRef);
-                if (docSnap.exists()) {
-                    const loadedSettings = docSnap.data();
-                    setSettings(prev => ({ 
-                        ...defaultSettings, 
-                        ...loadedSettings, 
-                        subjectColors: {...defaultSettings.subjectColors, ...(loadedSettings.subjectColors || {})} 
-                    }));
+                let userSettings = null;
+                
+                if (!auth.currentUser) {
+                    // Kiểm tra localStorage nếu chưa đăng nhập
+                    const localSettings = localStorage.getItem('scheduleAppSettings');
+                    if (localSettings) {
+                        userSettings = JSON.parse(localSettings);
+                    }
                 } else {
-                    await setDoc(settingsRef, defaultSettings);
-                    setSettings(defaultSettings);
+                    // Nếu đã đăng nhập, lấy từ Firestore
+                    const settingsRef = doc(db, `users/${auth.currentUser.uid}/settings/main`);
+                    const settingsSnap = await getDoc(settingsRef);
+                    
+                    if (settingsSnap.exists()) {
+                        userSettings = settingsSnap.data();
+                    }
                 }
+                
+                // Nếu không có settings từ trước, khởi tạo với cài đặt mặc định và tự động nhận diện dark mode
+                if (!userSettings) {
+                    const prefersDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    userSettings = {
+                        ...defaultSettings,
+                        darkMode: prefersDarkMode
+                    };
+                }
+                
+                // Áp dụng dark mode ngay lập tức
+                if (userSettings.darkMode) {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+                
+                setSettings(userSettings);
+                
+                // Lưu vào localStorage đồng bộ để tránh flash
+                localStorage.setItem('scheduleAppSettings', JSON.stringify(userSettings));
             } catch (error) {
                 console.error("Error loading settings:", error);
+                // Nếu có lỗi, dùng cài đặt mặc định
                 setSettings(defaultSettings);
             } finally {
-                setLoadingSettings(false);
+                setLoading(false);
             }
-        } else {
-            setSettings(defaultSettings);
-            setLoadingSettings(false);
-        }
+        };
+        
+        loadSettings();
     }, []);
 
+    // Thêm listener cho dark mode OS để tự động cập nhật nếu có thay đổi
     useEffect(() => {
-        if (user) { 
-            loadSettings(user);
-        } else { 
-            setSettings(defaultSettings);
-            setLoadingSettings(false);
-        }
-    }, [user, loadSettings]);
-    
-    useEffect(() => {
-        document.documentElement.classList.toggle('dark', settings.darkMode);
-    }, [settings.darkMode]);
+        if (!settings) return;
 
-    const updateSettings = async (newSettingsPartial) => {
-        const newSettings = {...settings, ...newSettingsPartial};
-        if (user && db) {
-            const settingsRef = doc(db, `users/${user.uid}/preferences`, 'userSettings');
-            try {
-                await setDoc(settingsRef, newSettings, { merge: true });
-                setSettings(newSettings);
-            } catch (error) {
-                console.error("Error updating settings:", error);
+        const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const handleColorSchemeChange = (e) => {
+            if (!auth.currentUser) {
+                // Chỉ tự động cập nhật nếu người dùng chưa đặt tùy chỉnh riêng (chưa đăng nhập)
+                toggleDarkMode(e.matches);
             }
-        } else {
-            setSettings(newSettings);
-        }
-    };
+        };
+        
+        darkModeMediaQuery.addEventListener('change', handleColorSchemeChange);
+        return () => darkModeMediaQuery.removeEventListener('change', handleColorSchemeChange);
+    }, [settings, toggleDarkMode]);
     
-    const toggleDarkMode = () => {
-        updateSettings({ darkMode: !settings.darkMode });
-    };
-
-    const updateSubjectColor = (subjectKey, colorProperties) => {
-        const newColors = { ...settings.subjectColors, [subjectKey]: colorProperties };
-        updateSettings({ subjectColors: newColors });
-    };
-     const updateScheduleNameInSettings = (newName) => { 
-        updateSettings({ scheduleName: newName });
-    };
-
     return (
-        <SettingsContext.Provider value={{ settings, loadingSettings, updateSettings, toggleDarkMode, updateSubjectColor, updateScheduleNameInSettings }}>
+        <SettingsContext.Provider 
+            value={{ 
+                settings, 
+                loading, 
+                updateSettings, 
+                toggleDarkMode, 
+                updateSubjectColor,
+                updateScheduleNameInSettings
+            }}
+        >
             {children}
         </SettingsContext.Provider>
     );
@@ -442,12 +521,35 @@ const ScheduleProvider = ({ children }) => {
     };
 
     const updateScheduleName = async (newName) => {
+        // Cập nhật cả trong schedule và settings để đồng bộ
         const updatedSchedule = { ...schedule, name: newName };
         setSchedule(updatedSchedule);
+        
+        // Cập nhật vào localStorage để đảm bảo dữ liệu không bị mất
+        try {
+            const localData = localStorage.getItem('scheduleData');
+            if (localData) {
+                const parsedData = JSON.parse(localData);
+                localStorage.setItem('scheduleData', JSON.stringify({
+                    ...parsedData,
+                    name: newName
+                }));
+            } else {
+                localStorage.setItem('scheduleData', JSON.stringify({ 
+                    name: newName,
+                    timeSlots: schedule.timeSlots
+                }));
+            }
+        } catch (err) {
+            console.error('Error saving schedule name to localStorage', err);
+        }
+        
+        // Cập nhật lên Firestore
         if (user && db) {
             const scheduleRef = doc(db, `users/${user.uid}/schedules`, scheduleId);
             try {
                 await updateDoc(scheduleRef, { name: newName });
+                console.log("Schedule name updated in Firestore");
             } catch (error) {
                 console.error("Error updating schedule name in Firestore:", error);
             }
@@ -465,25 +567,58 @@ const ScheduleProvider = ({ children }) => {
 // --- Components ---
 const HanoiClock = () => {
     const [time, setTime] = useState("");
+    const [date, setDate] = useState("");
+    const [animate, setAnimate] = useState(false);
 
     useEffect(() => {
         const updateClock = () => {
-            const now = new Date();
-            const hanoiTime = new Intl.DateTimeFormat('vi-VN', {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                timeZone: 'Asia/Ho_Chi_Minh',
-                hour12: false
-            }).format(now);
-            setTime(hanoiTime);
+            try {
+                // Create date object for Vietnam timezone (+7)
+                const now = new Date();
+                
+                // Format time manually to ensure accuracy
+                const formatter = new Intl.DateTimeFormat('vi-VN', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    timeZone: 'Asia/Ho_Chi_Minh',
+                    hour12: false
+                });
+                const hanoiTime = formatter.format(now);
+                
+                // Format date with correct locale settings
+                const dateFormatter = new Intl.DateTimeFormat('vi-VN', {
+                    weekday: 'short',
+                    day: '2-digit',
+                    month: '2-digit',
+                    timeZone: 'Asia/Ho_Chi_Minh',
+                });
+                const hanoiDate = dateFormatter.format(now);
+                
+                setTime(hanoiTime);
+                setDate(hanoiDate);
+                
+                // Add a little animation on second change
+                setAnimate(true);
+                setTimeout(() => setAnimate(false), 500);
+            } catch (error) {
+                console.error("Error updating clock:", error);
+            }
         };
+        
         updateClock();
         const intervalId = setInterval(updateClock, 1000);
         return () => clearInterval(intervalId);
     }, []);
 
-    return <span className="text-xs md:text-sm font-mono ml-2 md:ml-4">{time} (Hanoi)</span>;
+    return (
+        <div className="flex flex-col items-center justify-center">
+            <span className={`text-xs md:text-sm font-mono text-blue-100 font-medium transition-transform ${animate ? 'scale-105' : 'scale-100'}`}>
+                {time || "--:--:--"}
+            </span>
+            <span className="text-[10px] text-blue-200/80">{date || "-- --/--"}</span>
+        </div>
+    );
 };
 
 const DailyQuote = () => {
@@ -492,8 +627,12 @@ const DailyQuote = () => {
         setQuote(inspirationalQuotes[Math.floor(Math.random() * inspirationalQuotes.length)]);
     }, []);
     return (
-        <div className="my-4 p-3 bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-200 rounded-lg shadow text-center text-sm italic">
-            <i className="fas fa-quote-left mr-2"></i>{quote}<i className="fas fa-quote-right ml-2"></i>
+        <div className="my-6 p-4 bg-gradient-to-br from-amber-100/90 to-amber-50/80 dark:from-amber-800/30 dark:to-amber-900/20 backdrop-blur-sm text-amber-800 dark:text-amber-200 rounded-xl shadow-lg text-center text-sm italic border border-amber-200/30 dark:border-amber-700/30">
+            <div className="flex items-center justify-center">
+                <i className="fas fa-quote-left mr-3 text-amber-500/70 dark:text-amber-400/70 text-xl"></i>
+                <p className="leading-relaxed">{quote}</p>
+                <i className="fas fa-quote-right ml-3 text-amber-500/70 dark:text-amber-400/70 text-xl"></i>
+            </div>
         </div>
     );
 };
@@ -503,48 +642,182 @@ const Navbar = () => {
     const { user, loadingAuth, handleSignOut, handleGoogleSignIn } = useAuth();
     const { toggleDarkMode, settings } = useSettings();
     const [showSettingsModal, setShowSettingsModal] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [showNotification, setShowNotification] = useState(false);
+    const [notificationMessage, setNotificationMessage] = useState("");
+    const dynamicIslandRef = useRef(null); // Tham chiếu đến Dynamic Island
+
+    // Animation utility function
+    const showBriefNotification = (message) => {
+        setNotificationMessage(message);
+        setShowNotification(true);
+        setTimeout(() => setShowNotification(false), 2000);
+    };
+
+    // Toggle expand/collapse for Dynamic Island effect
+    const toggleExpand = () => {
+        setIsExpanded(!isExpanded);
+    };
+
+    // Close Dynamic Island - với kiểm tra click có nằm trong Dynamic Island không
+    const handleOutsideClick = (e) => {
+        if (dynamicIslandRef.current && !dynamicIslandRef.current.contains(e.target)) {
+            setIsExpanded(false);
+        }
+    };
+
+    // Đăng ký sự kiện click toàn cục khi Dynamic Island mở
+    useEffect(() => {
+        if (isExpanded) {
+            document.addEventListener('mousedown', handleOutsideClick);
+        } else {
+            document.removeEventListener('mousedown', handleOutsideClick);
+        }
+        
+        // Dọn dẹp khi component unmount
+        return () => {
+            document.removeEventListener('mousedown', handleOutsideClick);
+        };
+    }, [isExpanded]);
 
     return (
-        <nav className="bg-indigo-600 dark:bg-indigo-800 text-white p-3 md:p-4 shadow-md sticky top-0 z-40">
-            <div className="container mx-auto flex justify-between items-center">
-                <h1 className="text-lg md:text-xl font-semibold">Thời Khóa Biểu Pro</h1>
-                <HanoiClock />
-                <div className="flex items-center space-x-2">
-                    <button
-                        onClick={toggleDarkMode}
-                        className="p-2 rounded-md hover:bg-indigo-500 dark:hover:bg-indigo-700 transition-colors"
-                        aria-label="Toggle dark mode"
+        <nav className="bg-gradient-to-r from-indigo-700 via-indigo-600 to-indigo-700 dark:from-indigo-900 dark:via-indigo-800 dark:to-indigo-900 text-white p-3 md:p-4 shadow-lg sticky top-0 z-40 relative">
+            {/* Notification popup - very simple design */}
+            {showNotification && (
+                <div className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-indigo-500 to-indigo-600 px-4 py-2 rounded-full text-white text-sm shadow-lg z-50 pointer-events-none">
+                    {notificationMessage}
+                </div>
+            )}
+            
+            <div className="container mx-auto">
+                {/* Dynamic Island inspired container */}
+                <div 
+                    ref={dynamicIslandRef}
+                    className={`mx-auto max-w-4xl transition-all duration-300 ease-in-out dynamic-island-component z-40 relative
+                    ${isExpanded ? 'backdrop-blur-md bg-white/10 rounded-2xl p-4 shadow-lg' : 'bg-transparent'}`}
+                >
+                    
+                    {/* Main bar with pill shape when collapsed */}
+                    <div className={`grid grid-cols-3 items-center dynamic-island-component
+                        ${!isExpanded && 'backdrop-blur-md bg-white/10 rounded-full px-4 py-2 shadow-md transition-all duration-300'}`}
+                        onClick={!isExpanded ? toggleExpand : undefined}
                     >
-                        {settings.darkMode ? <i className="fas fa-sun"></i> : <i className="fas fa-moon"></i>}
-                    </button>
-                    <button
-                        onClick={() => setShowSettingsModal(true)}
-                        className="p-2 rounded-md hover:bg-indigo-500 dark:hover:bg-indigo-700 transition-colors"
-                        aria-label="Mở cài đặt"
-                    >
-                        <i className="fas fa-cog"></i>
-                    </button>
-                    {loadingAuth ? (
-                        <span className="text-sm"><i className="fas fa-spinner fa-spin mr-1"></i></span>
-                    ) : user ? (
-                        <>
-                            <span className="text-xs md:text-sm hidden sm:block">
-                                Chào, {user.isAnonymous ? "Khách" : (user.displayName?.split(' ')[0] || user.email?.split('@')[0] || user.uid.substring(0,6))}
-                            </span>
-                            <button 
-                                onClick={handleSignOut}
-                                className="bg-red-500 hover:bg-red-600 px-2 md:px-3 py-1 rounded-md text-xs md:text-sm"
-                            >
-                                Đăng xuất
-                            </button>
-                        </>
-                    ) : (
-                         <button 
-                            onClick={handleGoogleSignIn}
-                            className="bg-blue-500 hover:bg-blue-600 px-2 md:px-3 py-1 rounded-md text-xs md:text-sm inline-flex items-center"
-                         >
-                           <i className="fab fa-google mr-1 md:mr-2"></i> Đăng nhập
-                         </button>
+                        
+                        {/* App title with animation */}
+                        <div className="flex items-center space-x-2">
+                            <div className={`w-2 h-2 rounded-full bg-emerald-400 animate-pulse ${isExpanded ? 'mr-2' : ''}`}></div>
+                            <h1 className="text-lg md:text-xl font-semibold bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-100">
+                                Thời Khóa Biểu Pro
+                            </h1>
+                        </div>
+
+                        {/* Clock with enhanced styling - now in center column */}
+                        <div className="flex justify-center">
+                            <div className={`clock-widget backdrop-blur-md bg-white/10 rounded-full px-4 py-1.5 
+                                flex items-center justify-center transition-all duration-300
+                                ${isExpanded ? 'scale-110 shadow-lg' : 'scale-100'}`}>
+                                <i className="fas fa-clock mr-2.5 text-blue-200"></i>
+                                <HanoiClock />
+                            </div>
+                        </div>
+
+                        {/* Buttons area - only show icon when collapsed - now right-aligned */}
+                        <div className="flex items-center justify-end space-x-2 dynamic-island-component">
+                            {!isExpanded && (
+                                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center cursor-pointer hover:bg-white/20 transition-colors"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleExpand();
+                                    }}>
+                                    <i className="fas fa-ellipsis-h text-xs"></i>
+                                </div>
+                            )}
+                            
+                            {isExpanded && (
+                                <>
+                                    <button
+                                        onClick={() => toggleDarkMode()}
+                                        className="p-2 bg-white/10 hover:bg-white/20 rounded-full aspect-square flex items-center justify-center transition-colors"
+                                        aria-label="Toggle dark mode"
+                                        title={settings.darkMode ? "Chuyển sáng" : "Chuyển tối"}
+                                    >
+                                        {settings.darkMode ? <i className="fas fa-sun"></i> : <i className="fas fa-moon"></i>}
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowSettingsModal(true);
+                                            showBriefNotification("Đang mở cài đặt...");
+                                        }}
+                                        className="p-2 bg-white/10 hover:bg-white/20 rounded-full aspect-square flex items-center justify-center transition-colors"
+                                        aria-label="Mở cài đặt"
+                                        title="Cài đặt"
+                                    >
+                                        <i className="fas fa-cog"></i>
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                    
+                    {/* Expanded content - user info and controls */}
+                    {isExpanded && (
+                        <div className="mt-4 animate-fadeIn">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-lg font-bold shadow-md">
+                                        {user && (user.displayName?.charAt(0) || user.email?.charAt(0) || "U")}
+                                    </div>
+                                    <div>
+                                        {loadingAuth ? (
+                                            <div className="flex items-center">
+                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                                                <span className="text-sm">Đang tải...</span>
+                                            </div>
+                                        ) : user ? (
+                                            <div>
+                                                <p className="font-medium">
+                                                    Chào, {user.isAnonymous ? "Khách" : (user.displayName?.split(' ')[0] || user.email?.split('@')[0] || user.uid.substring(0,6))}
+                                                </p>
+                                                <p className="text-xs text-blue-200 opacity-80">{user.email || "Người dùng khách"}</p>
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm font-medium">Chưa đăng nhập</p>
+                                        )}
+                                    </div>
+                                </div>
+                                
+                                <div className="flex items-center space-x-2">
+                                    {user ? (
+                                        <button 
+                                            onClick={() => {
+                                                handleSignOut();
+                                                setIsExpanded(false);
+                                                showBriefNotification("Đang đăng xuất...");
+                                            }}
+                                            className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 px-3 py-1.5 rounded-full text-sm font-medium flex items-center shadow-lg transition-all duration-200"
+                                        >
+                                            <i className="fas fa-sign-out-alt mr-1.5"></i> Đăng xuất
+                                        </button>
+                                    ) : (
+                                        <button 
+                                            onClick={() => {
+                                                handleGoogleSignIn();
+                                            }}
+                                            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 px-3 py-1.5 rounded-full text-sm font-medium flex items-center shadow-lg transition-all duration-200"
+                                        >
+                                            <i className="fab fa-google mr-1.5"></i> Đăng nhập
+                                        </button>
+                                    )}
+                                    <button 
+                                        onClick={() => setIsExpanded(false)}
+                                        className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20"
+                                        title="Đóng"
+                                    >
+                                        <i className="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     )}
                 </div>
             </div>
@@ -568,7 +841,6 @@ const PomodoroTimer = () => {
     const [isActive, setIsActive] = useState(false);
     const [isWorkSession, setIsWorkSession] = useState(true);
     const [cycles, setCycles] = useState(0);
-    const alarmSound = useRef(null);
     const [showSettings, setShowSettings] = useState(false);
 
     // States for custom input fields
@@ -585,33 +857,32 @@ const PomodoroTimer = () => {
 
     const playAlarm = useCallback(() => {
         console.log("PomodoroTimer: playAlarm called.");
-        if (!window.Tone) {
-            console.warn("PomodoroTimer: playAlarm - window.Tone is not available.");
-            return;
-        }
-        if (!alarmSound.current) {
-            console.log("PomodoroTimer: playAlarm - alarmSound.current is null, attempting to initialize Tone.Synth now.");
-            try {
-                alarmSound.current = new window.Tone.Synth().toDestination();
-            } catch (e) {
-                console.error("PomodoroTimer: playAlarm - Error initializing Tone.Synth:", e);
-                return;
-            }
-        }
-        if (!alarmSound.current) return;
-
-        const playNotes = () => {
-            try {
-                alarmSound.current.triggerAttackRelease("C5", "8n", window.Tone.now());
-                alarmSound.current.triggerAttackRelease("E5", "8n", window.Tone.now() + 0.2);
-                alarmSound.current.triggerAttackRelease("G5", "8n", window.Tone.now() + 0.4);
-            } catch (e) { console.error("PomodoroTimer: playAlarm - Error triggering notes:", e); }
-        };
-
-        if (window.Tone.context.state !== 'running') {
-            window.Tone.start().then(playNotes).catch(e => console.error("PomodoroTimer: playAlarm - Error starting Tone.js AudioContext:", e));
+        // Sử dụng global function từ notification.js
+        if (window.playNotificationSound) {
+            window.playNotificationSound();
         } else {
-            playNotes();
+            console.warn("PomodoroTimer: playNotificationSound function is not available.");
+            // Fallback nếu function không tồn tại
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                
+                const audioCtx = new AudioContext();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                
+                oscillator.type = 'sine';
+                oscillator.frequency.value = 800;
+                gainNode.gain.value = 0.5;
+                
+                oscillator.start();
+                setTimeout(() => oscillator.stop(), 500);
+            } catch (e) {
+                console.error("PomodoroTimer: Fallback sound failed:", e);
+            }
         }
     }, []);
 
@@ -719,22 +990,39 @@ const PomodoroTimer = () => {
     };
 
     return (
-        <div className="my-6 p-4 md:p-6 bg-white dark:bg-slate-800 rounded-lg shadow-lg max-w-md mx-auto text-center">
-            <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl md:text-2xl font-semibold text-indigo-700 dark:text-indigo-300">
-                    Đồng hồ Pomodoro ({isWorkSession ? "Làm việc" : "Nghỉ ngơi"})
-                </h2>
-                <button 
-                    onClick={() => setShowSettings(!showSettings)} 
-                    className="p-2 text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-                    aria-label="Cài đặt Pomodoro"
-                >
-                    <i className={`fas ${showSettings ? 'fa-times' : 'fa-cog'}`}></i>
-                </button>
+        <div className="my-8 bg-gradient-to-br from-white/90 to-white/70 dark:from-slate-800/90 dark:to-slate-800/70 backdrop-blur-sm rounded-2xl shadow-xl max-w-md mx-auto overflow-hidden border border-white/20 dark:border-slate-700/50">
+            <div className="bg-gradient-to-r from-indigo-600/90 to-purple-600/90 p-4 text-white">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl md:text-2xl font-semibold bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-100">
+                        Đồng hồ Pomodoro
+                    </h2>
+                    <div className="flex items-center">
+                        <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-green-400 animate-pulse' : 'bg-red-400'} mr-2`}></div>
+                        <span className="text-xs uppercase tracking-wider font-medium">
+                            {isActive ? 'Đang chạy' : 'Tạm dừng'}
+                        </span>
+                    </div>
+                    <button 
+                        onClick={() => setShowSettings(!showSettings)} 
+                        className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors flex items-center justify-center"
+                        aria-label="Cài đặt Pomodoro"
+                    >
+                        <i className={`fas ${showSettings ? 'fa-times' : 'fa-cog'}`}></i>
+                    </button>
+                </div>
+
+                <div className="flex items-center justify-center">
+                    <div className={`text-5xl md:text-6xl font-bold mb-1 transition-all duration-300 ${isWorkSession ? 'text-red-300' : 'text-green-300'}`}>
+                        {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
+                    </div>
+                </div>
+                <div className="text-center mb-2 py-1 px-3 bg-white/10 backdrop-blur-sm rounded-full text-xs inline-block mx-auto">
+                    {isWorkSession ? "Làm việc" : "Nghỉ ngơi"}
+                </div>
             </div>
 
             {showSettings && (
-                <div className="p-3 md:p-4 border border-gray-200 dark:border-gray-700 rounded-md mb-4 text-left space-y-3 bg-gray-50 dark:bg-slate-700 shadow">
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700 space-y-3 bg-white/50 dark:bg-slate-800/50">
                     <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tùy chỉnh thời gian (phút):</p>
                     {[
                         { label: 'Làm việc', type: 'work', value: customWork, setter: setCustomWork, presets: presetDurations.work },
@@ -774,21 +1062,25 @@ const PomodoroTimer = () => {
                 </div>
             )}
 
-            <div className={`text-5xl md:text-6xl font-bold mb-6 ${isWorkSession ? 'text-red-500 dark:text-red-400' : 'text-green-500 dark:text-green-400'}`}>
-                {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
+            <div className="p-6">
+                <div className="flex flex-col sm:flex-row justify-center items-center space-y-3 sm:space-y-0 sm:space-x-3 mb-4">
+                    <button onClick={toggleTimer} className={`w-full sm:w-auto px-5 py-2.5 rounded-full font-medium text-white shadow-lg transition-all duration-200 ${isActive ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700' : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'}`}>
+                        {isActive ? <><i className="fas fa-pause mr-2"></i>Tạm dừng</> : <><i className="fas fa-play mr-2"></i>Bắt đầu</>}
+                    </button>
+                    <button onClick={resetTimer} className="w-full sm:w-auto px-5 py-2.5 rounded-full font-medium bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-200 shadow-lg transition-colors">
+                        <i className="fas fa-redo mr-2"></i>Làm mới
+                    </button>
+                     <button onClick={skipSession} className="w-full sm:w-auto px-5 py-2.5 rounded-full font-medium bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white shadow-lg transition-colors">
+                        <i className="fas fa-forward mr-2"></i>Bỏ qua
+                    </button>
+                </div>
+                <div className="flex justify-center">
+                    <div className="bg-gray-100 dark:bg-slate-700 rounded-full py-1 px-4 inline-flex items-center">
+                        <i className="fas fa-history mr-2 text-gray-500 dark:text-gray-400"></i>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Chu kỳ hoàn thành: <span className="font-medium">{cycles}</span></p>
+                    </div>
+                </div>
             </div>
-            <div className="flex flex-col sm:flex-row justify-center items-center space-y-2 sm:space-y-0 sm:space-x-3">
-                <button onClick={toggleTimer} className={`w-full sm:w-auto px-5 py-2 rounded-md font-medium text-white transition-colors ${isActive ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-blue-500 hover:bg-blue-600'}`}>
-                    {isActive ? <><i className="fas fa-pause mr-2"></i>Tạm dừng</> : <><i className="fas fa-play mr-2"></i>Bắt đầu</>}
-                </button>
-                <button onClick={resetTimer} className="w-full sm:w-auto px-5 py-2 rounded-md font-medium bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-200 transition-colors">
-                    <i className="fas fa-redo mr-2"></i>Làm mới
-                </button>
-                 <button onClick={skipSession} className="w-full sm:w-auto px-5 py-2 rounded-md font-medium bg-teal-500 hover:bg-teal-600 text-white transition-colors" title="Bỏ qua phiên hiện tại">
-                    <i className="fas fa-forward mr-2"></i>Bỏ qua
-                </button>
-            </div>
-            <p className="text-xs md:text-sm mt-4 text-gray-600 dark:text-gray-400">Chu kỳ làm việc đã hoàn thành: {cycles}</p>
         </div>
     );
 };
@@ -798,7 +1090,7 @@ const ActivityCell = ({ activity, timeSlotIndex, activityIndex }) => {
     const { updateActivity } = useSchedule();
     const [showEditModal, setShowEditModal] = useState(false);
 
-    if (!activity) return <td className="border p-1 md:p-2 dark:border-gray-700 min-h-[70px] md:min-h-[80px]"></td>;
+    if (!activity) return <td className="border p-2 md:p-3 dark:border-gray-700 min-h-[70px] md:min-h-[80px]"></td>;
 
     const colorScheme = settings.subjectColors[activity.colorKey] || settings.subjectColors.default;
     
@@ -814,32 +1106,32 @@ const ActivityCell = ({ activity, timeSlotIndex, activityIndex }) => {
     return (
         <>
             <td 
-                className={`activity-cell border p-1 md:p-2 min-h-[70px] md:min-h-[80px] relative group cursor-pointer ${colorScheme.bg} ${colorScheme.text} ${activity.isCompleted ? 'opacity-60' : ''}`}
+                className={`activity-cell border dark:border-gray-700 p-2 md:p-3 min-h-[70px] md:min-h-[80px] relative group cursor-pointer ${colorScheme.bg} ${colorScheme.text} ${activity.isCompleted ? 'opacity-60' : ''} transition-all duration-200 hover:shadow-md`}
                 style={{ borderLeft: `4px solid ${settings.subjectColors[activity.colorKey]?.border || settings.subjectColors.default.border}` }}
                 onClick={() => setShowEditModal(true)}
             >
                 <div className="activity-content flex flex-col items-center justify-center text-center h-full">
-                    {activity.icon && <i className={`${activity.icon} text-sm md:text-lg mb-1 ${colorScheme.text}`}></i>}
+                    {activity.icon && <i className={`${activity.icon} text-sm md:text-lg mb-1.5 ${colorScheme.text}`}></i>}
                     <span className={`font-medium text-xs md:text-sm ${activity.isCompleted ? 'line-through' : ''}`}>
                         {activity.activityName}
                     </span>
-                    {activity.details && <div className="text-[10px] md:text-xs opacity-80 mt-0.5">{activity.details}</div>}
+                    {activity.details && <div className="text-[10px] md:text-xs opacity-80 mt-1">{activity.details}</div>}
                     {activity.quickNote && 
-                        <div className="text-[10px] md:text-xs italic mt-1 p-0.5 md:p-1 bg-black/10 dark:bg-white/10 rounded max-w-full overflow-hidden text-ellipsis whitespace-nowrap" title={activity.quickNote}>
+                        <div className="text-[10px] md:text-xs italic mt-1.5 p-1 md:p-1.5 bg-gray-100/30 dark:bg-white/10 rounded-full max-w-full overflow-hidden text-ellipsis whitespace-nowrap" title={activity.quickNote}>
                             <i className="fas fa-sticky-note mr-1"></i>{activity.quickNote}
                         </div>
                     }
-                    <div className="absolute top-1 right-1 flex flex-col space-y-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
+                    <div className="absolute top-1 right-1 flex flex-col space-y-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
                          <button 
                             onClick={handleToggleComplete}
-                            className={`p-1 text-[10px] md:text-xs rounded ${activity.isCompleted ? 'bg-yellow-400 hover:bg-yellow-500 text-black' : 'bg-green-400 hover:bg-green-500 text-white'}`}
+                            className={`p-1.5 text-[10px] md:text-xs rounded-full ${activity.isCompleted ? 'bg-yellow-400 hover:bg-yellow-500 text-black' : 'bg-green-400 hover:bg-green-500 text-white'} shadow-sm hover:shadow transition-all`}
                             title={activity.isCompleted ? "Đánh dấu chưa hoàn thành" : "Đánh dấu đã hoàn thành"}
                         >
                             <i className={`fas ${activity.isCompleted ? 'fa-times-circle' : 'fa-check-circle'}`}></i>
                         </button>
                         <button 
                             onClick={handleEditClick}
-                            className="p-1 bg-blue-400 hover:bg-blue-500 text-white text-[10px] md:text-xs rounded"
+                            className="p-1.5 bg-blue-400 hover:bg-blue-500 text-white text-[10px] md:text-xs rounded-full shadow-sm hover:shadow transition-all"
                             title="Chỉnh sửa"
                         >
                             <i className="fas fa-pencil-alt"></i>
@@ -913,10 +1205,20 @@ const EditActivityModal = ({ activity, timeSlotIndex, activityIndex, onClose }) 
         }));
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[100] p-4">
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-                <h3 className="text-xl font-semibold mb-6 text-gray-800 dark:text-gray-200">Chỉnh sửa Hoạt động</h3>
-                <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-md flex items-center justify-center z-[100] p-4 modal-component">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto border border-white/20 dark:border-slate-700/50 modal-component">
+                <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-5 rounded-t-2xl">
+                    <div className="flex justify-between items-center">
+                        <h3 className="text-xl font-semibold text-white">Chỉnh sửa Hoạt động</h3>
+                        <button 
+                            onClick={onClose} 
+                            className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors text-white"
+                        >
+                            <i className="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                <form onSubmit={handleSubmit} className="p-5 space-y-4">
                     <div>
                         <label htmlFor={`activityName-${timeSlotIndex}-${activityIndex}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tên hoạt động</label>
                         <input 
@@ -978,8 +1280,8 @@ const EditActivityModal = ({ activity, timeSlotIndex, activityIndex, onClose }) 
                         ></textarea>
                     </div>
                     <div className="mt-6 flex justify-end space-x-3">
-                        <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-md">Hủy</button>
-                        <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md">Lưu thay đổi</button>
+                        <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-full">Hủy</button>
+                        <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 rounded-full shadow-md">Lưu thay đổi</button>
                     </div>
                 </form>
             </div>
@@ -1010,66 +1312,80 @@ const TimetableGrid = () => {
 
     const days = ["Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ Nhật"];
 
-    if (loadingSchedule) return <div className="text-center p-10 dark:text-gray-300">Đang tải lịch trình... <i className="fas fa-spinner fa-spin"></i></div>;
-    if (!schedule || !schedule.timeSlots) return <div className="text-center p-10 text-red-500 dark:text-red-400">Không tải được dữ liệu lịch trình.</div>;
+    if (loadingSchedule) return (
+        <div className="flex items-center justify-center p-10">
+            <div className="w-12 h-12 border-4 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+            <span className="ml-3 text-lg font-medium text-indigo-600 dark:text-indigo-400">Đang tải lịch trình...</span>
+        </div>
+    );
+    if (!schedule || !schedule.timeSlots) return (
+        <div className="text-center p-10 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl border border-red-200 dark:border-red-800/30">
+            <i className="fas fa-exclamation-triangle text-2xl mb-2"></i>
+            <p>Không tải được dữ liệu lịch trình.</p>
+        </div>
+    );
     
     return (
         <>
-            <div className="my-4 flex items-center justify-center">
+            <div className="my-6 flex items-center justify-center">
                 {editingName ? (
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 bg-white dark:bg-slate-800 shadow-md rounded-full px-3 py-2">
                         <input 
                             type="text"
                             value={currentScheduleName}
                             onChange={handleNameChange}
                             onBlur={handleNameSave} 
                             onKeyPress={(e) => { if (e.key === 'Enter') handleNameSave(); }}
-                            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-lg dark:bg-slate-700 dark:text-gray-200"
+                            className="px-3 py-2 bg-transparent border-b-2 border-indigo-300 dark:border-indigo-600 focus:outline-none focus:border-indigo-500 sm:text-lg dark:text-gray-200"
                             autoFocus
                         />
-                        <button onClick={handleNameSave} className="p-2 bg-green-500 text-white rounded-md hover:bg-green-600"><i className="fas fa-check"></i></button>
+                        <button onClick={handleNameSave} className="p-2 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors"><i className="fas fa-check"></i></button>
                     </div>
                 ) : (
                     <h2 
-                        className="text-2xl font-semibold text-center text-indigo-700 dark:text-indigo-300 hover:bg-gray-200 dark:hover:bg-slate-700 p-2 rounded cursor-pointer"
+                        className="text-2xl font-semibold text-center bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-500 dark:from-indigo-400 dark:to-purple-300 hover:from-indigo-500 hover:to-purple-400 p-2 rounded-full cursor-pointer transition-all duration-200 flex items-center"
                         onClick={() => setEditingName(true)}
                         title="Nhấp để sửa tên lịch trình"
                     >
-                        {schedule.name || "Lịch học của tôi"} <i className="fas fa-pencil-alt text-xs ml-2 opacity-50"></i>
+                        {schedule.name || "Lịch học của tôi"} 
+                        <i className="fas fa-pencil-alt text-xs ml-2 text-indigo-600 dark:text-indigo-300 opacity-80 bg-indigo-100 dark:bg-indigo-800/30 p-1.5 rounded-full"></i>
                     </h2>
                 )}
             </div>
-            <div className="table-wrapper overflow-x-auto" id="tableWrapper">
-                <div className="table-container bg-white dark:bg-slate-900" id="timetableContentForPdf">
-                    <table className="min-w-[900px] w-full border-collapse" id="actualTableToCapture">
-                        <thead>
-                            <tr className="bg-indigo-600 dark:bg-indigo-800 text-white">
-                                <th className="border p-1 md:p-2 dark:border-gray-700 w-[100px] md:w-1/12 text-xs md:text-sm">Thời gian</th>
-                                {days.map(day => <th key={day} className="border p-1 md:p-2 dark:border-gray-700 w-auto text-xs md:text-sm">{day}</th>)}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {schedule.timeSlots.map((slot, tsIdx) => (
-                                <tr key={slot.time}>
-                                    <td className="time-slot border p-1 md:p-2 dark:border-gray-700 text-xs md:text-sm align-middle">
-                                        {slot.time}
-                                    </td>
-                                    {days.map((day) => { 
-                                        const activity = slot.activities.find(act => act.day === day);
-                                        const activityIndexInSlot = slot.activities.findIndex(a => a.day === day);
-                                        return (
-                                            <ActivityCell 
-                                                key={`${slot.time}-${day}`}
-                                                activity={activity} 
-                                                timeSlotIndex={tsIdx}
-                                                activityIndex={activityIndexInSlot}
-                                            />
-                                        );
-                                    })}
+            
+            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl shadow-xl border border-gray-100 dark:border-gray-700/50 overflow-hidden">
+                <div className="overflow-x-auto" id="tableWrapper">
+                    <div className="table-container p-1" id="timetableContentForPdf">
+                        <table className="min-w-[900px] w-full border-collapse" id="actualTableToCapture">
+                            <thead>
+                                <tr className="bg-gradient-to-r from-indigo-600 to-indigo-700 dark:from-indigo-800 dark:to-indigo-700 text-white">
+                                    <th className="border border-indigo-400 dark:border-indigo-600 p-2 md:p-3 w-[100px] md:w-1/12 text-xs md:text-sm rounded-tl-lg">Thời gian</th>
+                                    {days.map((day, index) => <th key={day} className={`border border-indigo-400 dark:border-indigo-600 p-2 md:p-3 w-auto text-xs md:text-sm ${index === days.length - 1 ? 'rounded-tr-lg' : ''}`}>{day}</th>)}
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {schedule.timeSlots.map((slot, tsIdx) => (
+                                    <tr key={slot.time} className={tsIdx % 2 === 0 ? 'bg-gray-50/70 dark:bg-slate-700/30' : 'bg-white/70 dark:bg-slate-800/40'}>
+                                        <td className="time-slot border border-gray-200 dark:border-gray-700 p-2 md:p-3 text-xs md:text-sm align-middle font-medium">
+                                            {slot.time}
+                                        </td>
+                                        {days.map((day) => { 
+                                            const activity = slot.activities.find(act => act.day === day);
+                                            const activityIndexInSlot = slot.activities.findIndex(a => a.day === day);
+                                            return (
+                                                <ActivityCell 
+                                                    key={`${slot.time}-${day}`}
+                                                    activity={activity} 
+                                                    timeSlotIndex={tsIdx}
+                                                    activityIndex={activityIndexInSlot}
+                                                />
+                                            );
+                                        })}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </>
@@ -1111,59 +1427,66 @@ const SettingsModal = ({ onClose }) => {
     ];
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[100] p-4">
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200">Cài đặt</h3>
-                    <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                        <i className="fas fa-times text-xl"></i>
-                    </button>
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-md flex items-center justify-center z-[100] p-4 modal-component">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto border border-white/20 dark:border-slate-700/50 modal-component">
+                <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-5 rounded-t-2xl">
+                    <div className="flex justify-between items-center">
+                        <h3 className="text-xl font-semibold text-white">Cài đặt</h3>
+                        <button 
+                            onClick={onClose} 
+                            className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors text-white"
+                        >
+                            <i className="fas fa-times"></i>
+                        </button>
+                    </div>
                 </div>
                 
-                <div className="mb-6">
-                    <h4 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-3">Chế độ hiển thị</h4>
-                    <button 
-                        onClick={toggleDarkMode} 
-                        className="w-full px-4 py-2 rounded-md font-medium text-white bg-slate-500 hover:bg-slate-600 dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors"
-                    >
-                        {settings.darkMode ? <><i className="fas fa-sun mr-2"></i>Chuyển sang chế độ Sáng</> : <><i className="fas fa-moon mr-2"></i>Chuyển sang chế độ Tối</>}
-                    </button>
-                </div>
+                <div className="p-6">
+                    <div className="mb-6">
+                        <h4 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-3">Chế độ hiển thị</h4>
+                        <button 
+                            onClick={toggleDarkMode} 
+                            className="w-full px-4 py-3 rounded-full font-medium text-white bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 dark:from-slate-700 dark:to-slate-800 dark:hover:from-slate-800 dark:hover:to-slate-900 transition-colors shadow-md flex items-center justify-center"
+                        >
+                            {settings.darkMode ? <><i className="fas fa-sun mr-2"></i>Chuyển sang chế độ Sáng</> : <><i className="fas fa-moon mr-2"></i>Chuyển sang chế độ Tối</>}
+                        </button>
+                    </div>
 
-                <h4 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-3">Màu sắc Môn học/Hoạt động</h4>
-                <div className="space-y-4">
-                    {Object.entries(tempColors).filter(([key]) => key !== 'default').map(([subjectKey, colorValue]) => (
-                        <div key={subjectKey} className="p-3 border dark:border-gray-600 rounded-md bg-gray-50 dark:bg-slate-700">
-                            <p className="font-medium capitalize text-gray-700 dark:text-gray-300 mb-2">{subjectKey.replace(/_/g, ' ')}</p>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mb-2">
-                                {predefinedColorSets.map(opt => (
-                                    <button 
-                                        key={opt.name}
-                                        onClick={() => {
-                                            handleColorPropChange(subjectKey, 'bg', opt.value.bg);
-                                            handleColorPropChange(subjectKey, 'text', opt.value.text);
-                                            handleColorPropChange(subjectKey, 'border', opt.value.border);
-                                        }}
-                                        className={`p-2 rounded text-xs h-10 ${opt.value.bg} ${opt.value.text} border-2 ${colorValue.bg === opt.value.bg ? opt.value.border : 'border-transparent'}`}
-                                        title={`Áp dụng màu ${opt.name}`}
-                                    >
-                                        {opt.name}
-                                    </button>
-                                ))}
+                    <h4 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-3">Màu sắc Môn học/Hoạt động</h4>
+                    <div className="space-y-4 mt-4">
+                        {Object.entries(tempColors).filter(([key]) => key !== 'default').map(([subjectKey, colorValue]) => (
+                            <div key={subjectKey} className="p-3 border dark:border-gray-600 rounded-md bg-gray-50 dark:bg-slate-700">
+                                <p className="font-medium capitalize text-gray-700 dark:text-gray-300 mb-2">{subjectKey.replace(/_/g, ' ')}</p>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mb-2">
+                                    {predefinedColorSets.map(opt => (
+                                        <button 
+                                            key={opt.name}
+                                            onClick={() => {
+                                                handleColorPropChange(subjectKey, 'bg', opt.value.bg);
+                                                handleColorPropChange(subjectKey, 'text', opt.value.text);
+                                                handleColorPropChange(subjectKey, 'border', opt.value.border);
+                                            }}
+                                            className={`p-2 rounded text-xs h-10 ${opt.value.bg} ${opt.value.text} border-2 ${colorValue.bg === opt.value.bg ? opt.value.border : 'border-transparent'}`}
+                                            title={`Áp dụng màu ${opt.name}`}
+                                        >
+                                            {opt.name}
+                                        </button>
+                                    ))}
+                                </div>
+                                 <div className="text-xs space-y-1">
+                                    <label className="block text-gray-600 dark:text-gray-400">Lớp CSS nền (bg):</label>
+                                    <input type="text" value={colorValue.bg} onChange={(e) => handleColorPropChange(subjectKey, 'bg', e.target.value)} className="w-full p-1 border dark:border-gray-500 rounded-sm text-xs dark:bg-slate-600 dark:text-gray-200"/>
+                                    <label className="block text-gray-600 dark:text-gray-400">Lớp CSS chữ (text):</label>
+                                    <input type="text" value={colorValue.text} onChange={(e) => handleColorPropChange(subjectKey, 'text', e.target.value)} className="w-full p-1 border dark:border-gray-500 rounded-sm text-xs dark:bg-slate-600 dark:text-gray-200"/>
+                                    <label className="block text-gray-600 dark:text-gray-400">Lớp CSS viền (border):</label>
+                                    <input type="text" value={colorValue.border} onChange={(e) => handleColorPropChange(subjectKey, 'border', e.target.value)} className="w-full p-1 border dark:border-gray-500 rounded-sm text-xs dark:bg-slate-600 dark:text-gray-200"/>
+                                </div>
                             </div>
-                             <div className="text-xs space-y-1">
-                                <label className="block text-gray-600 dark:text-gray-400">Lớp CSS nền (bg):</label>
-                                <input type="text" value={colorValue.bg} onChange={(e) => handleColorPropChange(subjectKey, 'bg', e.target.value)} className="w-full p-1 border dark:border-gray-500 rounded-sm text-xs dark:bg-slate-600 dark:text-gray-200"/>
-                                <label className="block text-gray-600 dark:text-gray-400">Lớp CSS chữ (text):</label>
-                                <input type="text" value={colorValue.text} onChange={(e) => handleColorPropChange(subjectKey, 'text', e.target.value)} className="w-full p-1 border dark:border-gray-500 rounded-sm text-xs dark:bg-slate-600 dark:text-gray-200"/>
-                                <label className="block text-gray-600 dark:text-gray-400">Lớp CSS viền (border):</label>
-                                <input type="text" value={colorValue.border} onChange={(e) => handleColorPropChange(subjectKey, 'border', e.target.value)} className="w-full p-1 border dark:border-gray-500 rounded-sm text-xs dark:bg-slate-600 dark:text-gray-200"/>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-                <div className="mt-8 flex justify-end">
-                    <button onClick={handleSaveColors} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md text-sm">Lưu Thay Đổi Màu Sắc</button>
+                        ))}
+                    </div>
+                    <div className="mt-8 flex justify-end">
+                        <button onClick={handleSaveColors} className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-medium rounded-full text-sm shadow-md">Lưu Thay Đổi Màu Sắc</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1347,28 +1670,44 @@ const ToolsSection = () => {
     };
 
     return (
-        <div className="my-6 p-4 bg-white dark:bg-slate-800 rounded-lg shadow-md">
-            <h3 className="text-lg font-semibold mb-3 text-indigo-700 dark:text-indigo-300">Công cụ & Tiện ích</h3>
-            <div className="flex flex-wrap justify-center gap-2 mb-2">
-                <button 
-                    onClick={requestNotificationPermission}
-                    className="bg-purple-500 hover:bg-purple-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
-                >
-                    <i className="fas fa-bell mr-2"></i>Bật Thông Báo
-                </button>
+        <div className="my-6 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 dark:border-slate-700/50 overflow-hidden">
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-4 text-white">
+                <h3 className="text-lg font-semibold flex items-center">
+                    <i className="fas fa-tools mr-2"></i>
+                    Công cụ & Tiện ích
+                </h3>
             </div>
-            
-            <h4 className="text-md font-medium mb-2 text-center text-gray-700 dark:text-gray-300">Tải xuống lịch</h4>
-            <div className="flex flex-wrap justify-center gap-2">
-                <button 
-                    onClick={downloadSchedule}
-                    className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
-                >
-                    <i className="fas fa-download mr-2"></i>Tải Xuống Lịch
-                </button>
+            <div className="p-5">
+                <div className="flex flex-wrap justify-center gap-3 mb-4">
+                    <button 
+                        onClick={requestNotificationPermission}
+                        className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-medium py-2.5 px-5 rounded-full transition-colors shadow-md flex items-center"
+                    >
+                        <i className="fas fa-bell mr-2"></i>Bật Thông Báo
+                    </button>
+                </div>
+                
+                <div className="flex flex-wrap justify-center gap-3">
+                    <button 
+                        onClick={downloadSchedule}
+                        className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium py-2.5 px-5 rounded-full transition-colors shadow-md flex items-center"
+                    >
+                        <i className="fas fa-download mr-2"></i>Tải Xuống Lịch
+                    </button>
+                </div>
+                {notificationMessage && (
+                    <div className="mt-4 p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-sm flex items-center justify-center">
+                        <i className="fas fa-info-circle mr-2"></i>
+                        {notificationMessage}
+                    </div>
+                )}
+                {downloadMessage && (
+                    <div className="mt-4 p-3 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg text-sm flex items-center justify-center">
+                        <i className="fas fa-info-circle mr-2"></i>
+                        {downloadMessage}
+                    </div>
+                )}
             </div>
-            {notificationMessage && <p className="text-sm mt-3 text-center text-gray-600 dark:text-gray-400">{notificationMessage}</p>}
-            {downloadMessage && <p className="text-sm mt-3 text-center text-gray-600 dark:text-gray-400">{downloadMessage}</p>}
         </div>
     );
 };
@@ -1434,21 +1773,24 @@ const ActivityNotifier = () => {
 // Component mới để giải thích phương pháp học
 const LearningMethodInfo = () => {
     return (
-        <div className="my-6 p-6 bg-white dark:bg-slate-800 rounded-lg shadow-lg">
-            <h3 className="text-xl font-semibold mb-4 text-indigo-700 dark:text-indigo-300 flex items-center">
-                <i className="fas fa-info-circle mr-2"></i>
-                Giải Thích Phương Pháp Học
-            </h3>
-            <div className="space-y-4">
-                <div className="flex items-start">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-700 flex items-center justify-center mr-3">
-                        <i className="fas fa-clock text-purple-600 dark:text-purple-200"></i>
+        <div className="my-8 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl shadow-xl border border-white/20 dark:border-slate-700/50 overflow-hidden">
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-4 text-white">
+                <h3 className="text-xl font-semibold flex items-center">
+                    <i className="fas fa-info-circle mr-2"></i>
+                    Giải Thích Phương Pháp Học
+                </h3>
+            </div>
+            <div className="p-6 space-y-5">
+                {/* Method explanations with updated styling */}
+                <div className="flex items-start bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-100 dark:border-purple-800/30">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center mr-4 shadow-md">
+                        <i className="fas fa-clock text-white"></i>
                     </div>
                     <div className="flex-1">
-                        <h4 className="text-md font-medium text-purple-700 dark:text-purple-300">
+                        <h4 className="text-md font-semibold text-purple-700 dark:text-purple-300 mb-1">
                             Học 25p, nghỉ 5p x N lần (Phương pháp Pomodoro):
                         </h4>
-                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                        <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
                             Lặp lại chu kỳ gồm 25 phút tập trung học sâu, sau đó nghỉ ngắn 5 phút. 
                             Thực hiện chu kỳ này N lần. Ví dụ, "học 25p, nghỉ 5p x 4 lần" có nghĩa là: 
                             (25 phút học + 5 phút nghỉ) x 4. Tổng cộng là 100 phút học và 15 phút nghỉ ngắn xen kẽ.
@@ -1456,15 +1798,15 @@ const LearningMethodInfo = () => {
                     </div>
                 </div>
 
-                <div className="flex items-start">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-green-100 dark:bg-green-700 flex items-center justify-center mr-3">
-                        <i className="fas fa-couch text-green-600 dark:text-green-200"></i>
+                <div className="flex items-start bg-green-50 dark:bg-green-900/20 p-4 rounded-xl border border-green-100 dark:border-green-800/30">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center mr-4 shadow-md">
+                        <i className="fas fa-couch text-white"></i>
                     </div>
                     <div className="flex-1">
-                        <h4 className="text-md font-medium text-green-700 dark:text-green-300">
+                        <h4 className="text-md font-semibold text-green-700 dark:text-green-300 mb-1">
                             Nghỉ dài 15p:
                         </h4>
-                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                        <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
                             Sau khi hoàn thành một số chu kỳ Pomodoro (thường là 4), bạn sẽ có một 
                             khoảng thời gian nghỉ dài hơn là 15 phút. Điều này giúp não bộ thư giãn 
                             và tái tạo năng lượng.
@@ -1472,15 +1814,15 @@ const LearningMethodInfo = () => {
                     </div>
                 </div>
 
-                <div className="flex items-start">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-700 flex items-center justify-center mr-3">
-                        <i className="fas fa-users text-blue-600 dark:text-blue-200"></i>
+                <div className="flex items-start bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800/30">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center mr-4 shadow-md">
+                        <i className="fas fa-users text-white"></i>
                     </div>
                     <div className="flex-1">
-                        <h4 className="text-md font-medium text-blue-700 dark:text-blue-300">
+                        <h4 className="text-md font-semibold text-blue-700 dark:text-blue-300 mb-1">
                             AIO từ 20:00-23:00:
                         </h4>
-                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                        <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
                             Khối thời gian học tập trung 3 giờ liền tục qua Google Meet, không áp dụng 
                             Pomodoro để đảm bảo tính liên mạch.
                         </p>
@@ -1495,15 +1837,13 @@ const LearningMethodInfo = () => {
 
 function App() {
     useEffect(() => {
-        const fontAwesomeLink = document.createElement('link');
-        fontAwesomeLink.rel = 'stylesheet';
-        fontAwesomeLink.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css';
-        document.head.appendChild(fontAwesomeLink);
-
+        // Không tải lại Font Awesome vì đã có trong index.html
+        // Chỉ tải Tone.js khi cần
         const libraries = [
             { id: 'tonejs-lib', src: 'https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js' }
         ];
 
+        const loadedScripts = [];
         libraries.forEach(lib => {
             if (!document.getElementById(lib.id)) {
                 const script = document.createElement('script');
@@ -1513,12 +1853,17 @@ function App() {
                 script.onload = () => console.log(`${lib.id} loaded.`);
                 script.onerror = () => console.error(`Error loading ${lib.id}.`);
                 document.head.appendChild(script);
+                loadedScripts.push(script);
             }
         });
         
         return () => {
-            document.head.removeChild(fontAwesomeLink);
-            // Optionally remove dynamically added library scripts if needed, though usually not necessary
+            // Chỉ loại bỏ script đã thêm vào, không loại bỏ Font Awesome
+            loadedScripts.forEach(script => {
+                if (script && script.parentNode) {
+                    script.parentNode.removeChild(script);
+                }
+            });
         };
     }, []);
 
@@ -1527,17 +1872,23 @@ function App() {
             <SettingsProvider>
                 <ScheduleProvider>
                     <ActivityNotifier /> 
-                    <div className="min-h-screen bg-gray-100 dark:bg-slate-900 text-gray-900 dark:text-gray-100 transition-colors duration-300">
+                    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-50 dark:from-slate-900 dark:to-slate-800 text-gray-900 dark:text-gray-100 transition-colors duration-300 relative">
+                        <div className="absolute inset-0 bg-grid-pattern"></div>
                         <Navbar />
-                        <main className="container mx-auto px-2 py-4 md:px-4 md:py-8">
+                        <main className="container mx-auto px-3 py-6 md:px-6 md:py-10 relative z-10">
                             <DailyQuote />
                             <PomodoroTimer />
                             <TimetableGrid />
                             <ToolsSection />
                             <LearningMethodInfo />
                         </main>
-                        <footer className="text-center py-4 text-xs text-gray-500 dark:text-gray-400 border-t dark:border-gray-700">
-                            Thời Khóa Biểu Pro - Được tạo bởi AI. App ID: {appId}
+                        <footer className="text-center py-6 text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700/50 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm">
+                            <div className="container mx-auto">
+                                <div className="flex flex-col items-center justify-center space-y-2">
+                                    <p className="font-medium">Thời Khóa Biểu Pro</p>
+                                    <p>Được tạo bởi AI. App ID: {appId}</p>
+                                </div>
+                            </div>
                         </footer>
                     </div>
                 </ScheduleProvider>
@@ -1546,4 +1897,4 @@ function App() {
     );
 }
 
-export default App;// TEST CHANGE
+export default App;

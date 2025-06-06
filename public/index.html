@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
   <head>
     <meta charset="utf-8" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#000000" />
     <meta
       name="description"
-      content="Thời Khóa Biểu Pro - Ứng dụng quản lý thời khóa biểu hiệu quả"
+      content="Thời khóa biểu học tập và lập kế hoạch"
     />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <!--
@@ -24,13 +24,42 @@
       work correctly both with client-side routing and a non-root public URL.
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <title>Thời Khóa Biểu Pro</title>
+    
+    <!-- Thêm CSS kèm các lớp TailwindCSS hardcoded trước khi React load -->
+    <link rel="stylesheet" href="%PUBLIC_URL%/initial-styles.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
+    
+    <!-- Add darkmode script before any CSS loads -->
+    <script>
+      (function() {
+        // Ngay lập tức thiết lập darkMode từ localStorage hoặc system preference
+        try {
+          var darkModeSetting = localStorage.getItem('scheduleAppSettings');
+          var systemPrefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          
+          if (darkModeSetting) {
+            var settings = JSON.parse(darkModeSetting);
+            if (settings && settings.darkMode) {
+              document.documentElement.classList.add('dark');
+            } else {
+              document.documentElement.classList.remove('dark');
+            }
+          } else if (systemPrefersDark) {
+            document.documentElement.classList.add('dark');
+          }
+          
+          // Đảm bảo các style được áp dụng ngay lập tức
+          document.addEventListener('DOMContentLoaded', function() {
+            // Force browser để tính toán lại styles
+            document.body.offsetHeight;
+          });
+        } catch(e) {
+          console.error('Error applying initial dark mode', e);
+        }
+      })();
+    </script>
+    
+    <title>Thời khóa biểu Pro</title>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
